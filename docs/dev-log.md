@@ -365,3 +365,33 @@ Test Files  5 passed (5)
      Tests  73 passed (73)
   Duration  ~2.5s
 ```
+
+---
+
+## 2026-05-14 | v1.6.2 — 修复复制时 HTML 实体编码问题
+
+### 问题描述
+
+复制格式化后的 SQL 时，单引号 `'`、`<`、`>` 等字符被复制为 HTML 实体（`&#x27;`、`&lt;`、`&gt;`），粘贴到其他工具后无法直接使用。
+
+### 根因分析
+
+`PreviewPanel.getPlainText()` 通过正则 `replace(/<[^>]*>/g, '')` 剥除 highlight.js 生成的 HTML 标签，但没有反转义 HTML 实体。highlight.js 在高亮时会对特殊字符做 HTML 转义（`'` → `&#x27;`，`<` → `&lt;` 等），剥标签后这些实体仍残留在文本中。
+
+### 修复方案
+
+在 `PreviewPanel` 中新增 `unescapeHtml()` 私有方法，在 `getPlainText()` 剥标签后调用，将 `&#x27;`、`&quot;`、`&lt;`、`&gt;`、`&amp;` 依次还原为原始字符（`&amp;` 必须最后处理，避免二次转义）。
+
+### 变更文件清单
+
+| 文件 | 变更类型 | 说明 |
+|------|----------|------|
+| `src/ui/PreviewPanel.ts` | 修改 | `getPlainText()` 在剥标签后调用 `unescapeHtml()`；新增 `unescapeHtml()` 私有方法 |
+
+### 测试结果
+
+```
+Test Files  5 passed (5)
+     Tests  73 passed (73)
+  Duration  ~3.0s
+```

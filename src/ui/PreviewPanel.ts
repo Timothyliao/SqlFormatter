@@ -117,9 +117,11 @@ export class PreviewPanel {
       const codeInner = this.codeEl.querySelector('code') as HTMLElement;
       return codeInner.textContent ?? '';
     }
-    // Re-join blocks with blank lines between them (mirrors original formatting)
+    // Re-join blocks with blank lines between them (mirrors original formatting).
+    // Strip HTML tags first, then unescape HTML entities that highlight.js introduced
+    // (e.g. &#x27; → ', &lt; → <, &gt; → >, &amp; → &).
     return this.blocks
-      .map(b => b.htmlLines.join('\n').replace(/<[^>]*>/g, ''))
+      .map(b => this.unescapeHtml(b.htmlLines.join('\n').replace(/<[^>]*>/g, '')))
       .join('\n\n');
   }
 
@@ -409,5 +411,23 @@ export class PreviewPanel {
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
+  }
+
+  /**
+   * Reverse HTML entity encoding introduced by highlight.js.
+   * Handles the four entities that highlight.js escapes:
+   *   &amp; → &   (must be last to avoid double-unescaping)
+   *   &lt;  → <
+   *   &gt;  → >
+   *   &#x27; → '
+   *   &quot; → "
+   */
+  private unescapeHtml(text: string): string {
+    return text
+      .replace(/&#x27;/g, "'")
+      .replace(/&quot;/g, '"')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&');
   }
 }
