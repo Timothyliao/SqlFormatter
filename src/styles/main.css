@@ -1,0 +1,1115 @@
+/* ============================================================
+   SQL Formatter — Main Stylesheet
+   ============================================================ */
+
+/* ── Reset & base ─────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ── Dark theme (default) ─────────────────────────────────── */
+:root,
+[data-theme='dark'] {
+  --color-bg: #1e1e2e;
+  --color-surface: #181825;
+  --color-surface-alt: #1e1e2e;
+  --color-border: #313244;
+  --color-text: #cdd6f4;
+  --color-text-muted: #6c7086;
+  --color-accent: #89b4fa;
+  --color-error-bg: #45202a;
+  --color-error-text: #f38ba8;
+  --color-success-bg: #1e3a2f;
+  --color-success-text: #a6e3a1;
+  --color-placeholder: #45475a;
+  --color-gutter-bg: #181825;
+  --color-gutter-text: #6c7086;
+  --color-gutter-border: #313244;
+  --color-history-bg: #181825;
+  --color-history-item-bg: #1e1e2e;
+  --color-history-item-hover: #313244;
+  --color-history-item-text: #cdd6f4;
+  --color-history-num: #89b4fa;
+
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  --font-ui: system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --header-height: 52px;
+  --history-bar-height: 36px;
+  --panel-padding: 0;
+  --border-radius: 6px;
+  --editor-font-size: 13px;
+}
+
+/* ── Light theme ──────────────────────────────────────────── */
+[data-theme='light'] {
+  --color-bg: #eff1f5;
+  --color-surface: #e6e9ef;
+  --color-surface-alt: #eff1f5;
+  --color-border: #ccd0da;
+  --color-text: #4c4f69;
+  --color-text-muted: #8c8fa1;
+  --color-accent: #1e66f5;
+  --color-error-bg: #fce8e8;
+  --color-error-text: #d20f39;
+  --color-success-bg: #e8f5e9;
+  --color-success-text: #40a02b;
+  --color-placeholder: #acb0be;
+  --color-gutter-bg: #e6e9ef;
+  --color-gutter-text: #8c8fa1;
+  --color-gutter-border: #ccd0da;
+  --color-history-bg: #e6e9ef;
+  --color-history-item-bg: #eff1f5;
+  --color-history-item-hover: #ccd0da;
+  --color-history-item-text: #4c4f69;
+  --color-history-num: #1e66f5;
+}
+
+html,
+body {
+  height: 100%;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── App root ─────────────────────────────────────────────── */
+.app-root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Header ───────────────────────────────────────────────── */
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: var(--header-height);
+  padding: 0 16px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.app-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-accent);
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+
+/* ── Config panel (inside header) ────────────────────────── */
+.config-panel {
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.config-panel-inner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.config-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.config-label {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.config-select,
+.config-number {
+  background: var(--color-bg);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+  padding: 3px 8px;
+  font-size: 13px;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.config-select:focus,
+.config-number:focus {
+  border-color: var(--color-accent);
+}
+
+.config-number {
+  width: 64px;
+  text-align: center;
+}
+
+/* ── Settings button ──────────────────────────────────────── */
+.settings-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  color: var(--color-text-muted);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 5px 10px 5px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+  transition: color 0.15s, border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  position: relative;
+}
+
+.settings-btn:hover {
+  color: var(--color-text);
+  background: var(--color-history-item-hover);
+  border-color: var(--color-border);
+}
+
+.settings-btn.is-active {
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  border-color: color-mix(in srgb, var(--color-accent) 35%, transparent);
+}
+
+.settings-btn-icon {
+  flex-shrink: 0;
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.settings-btn:hover .settings-btn-icon,
+.settings-btn.is-active .settings-btn-icon {
+  transform: rotate(45deg);
+}
+
+.settings-btn-label {
+  line-height: 1;
+}
+
+/* ── Settings modal overlay ───────────────────────────────── */
+.settings-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 100;
+  backdrop-filter: blur(1px);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.settings-overlay.is-open {
+  display: block;
+  opacity: 1;
+}
+
+/* ── Settings modal dialog ────────────────────────────────── */
+.settings-modal {
+  display: none;
+  position: fixed;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-8px);
+  z-index: 101;
+  width: 400px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 96px);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  flex-direction: column;
+  opacity: 0;
+  transition: transform 0.22s cubic-bezier(0.34, 1.4, 0.64, 1),
+              opacity 0.18s ease;
+}
+
+.settings-modal.is-open {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+}
+
+/* Modal header */
+.settings-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.settings-modal-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+  letter-spacing: 0.02em;
+}
+
+.settings-modal-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.settings-modal-close:hover {
+  background: var(--color-history-item-hover);
+  color: var(--color-text);
+}
+
+/* Modal body */
+.settings-modal-body {
+  overflow-y: auto;
+  padding: 4px 0 8px;
+  flex: 1;
+}
+
+/* Settings section */
+.settings-section {
+  padding: 10px 16px 6px;
+}
+
+.settings-section + .settings-section {
+  border-top: 1px solid var(--color-border);
+  margin-top: 2px;
+  padding-top: 10px;
+}
+
+.settings-section-title {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  margin-bottom: 8px;
+}
+
+/* Settings row */
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+  gap: 12px;
+}
+
+.settings-row-label {
+  font-size: 13px;
+  color: var(--color-text);
+  flex: 1;
+  white-space: nowrap;
+}
+
+.settings-row .config-select,
+.settings-row .config-number {
+  flex-shrink: 0;
+  min-width: 130px;
+}
+
+/* Modal footer */
+.settings-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 10px 16px 12px;
+  border-top: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+/* Save button */
+.settings-save-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--color-accent);
+  color: var(--color-surface);
+  border: none;
+  border-radius: 7px;
+  padding: 7px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  letter-spacing: 0.01em;
+  transition: opacity 0.15s, transform 0.12s;
+}
+
+.settings-save-btn:hover {
+  opacity: 0.88;
+}
+
+.settings-save-btn:active {
+  transform: scale(0.97);
+}
+
+/* ── Theme toggle — checkbox switch ──────────────────────── */
+.theme-toggle-container {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+}
+
+.theme-switch {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* Visually hidden checkbox — keeps accessibility */
+.theme-switch-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Track pill */
+.theme-switch-track {
+  position: relative;
+  width: 48px;
+  height: 26px;
+  border-radius: 13px;
+  background: #45475a;
+  border: 1.5px solid #585b70;
+  transition: background 0.25s, border-color 0.25s;
+}
+
+.theme-switch:hover .theme-switch-track {
+  border-color: #89b4fa;
+}
+
+/* Light mode: warm track */
+.theme-switch-input:checked + .theme-switch-track {
+  background: #f0c060;
+  border-color: #e0a030;
+}
+
+/* Thumb — slides left/right, contains the icon */
+.theme-switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #1e1e2e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+              background 0.25s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.theme-switch-input:checked + .theme-switch-track .theme-switch-thumb {
+  transform: translateX(22px);
+  background: #fff;
+}
+
+/* Icon inside thumb */
+.theme-switch-thumb-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+/* Dark mode: moon is blue */
+.theme-switch-thumb-icon svg {
+  color: #89b4fa;
+}
+
+/* Light mode: sun is amber */
+.theme-switch-input:checked + .theme-switch-track .theme-switch-thumb-icon svg {
+  color: #e0a030;
+}
+
+/* Focus ring */
+.theme-switch-input:focus-visible + .theme-switch-track {
+  outline: 2px solid #89b4fa;
+  outline-offset: 2px;
+}
+
+/* ── History / Document tab bar ──────────────────────────── */
+.history-bar {
+  display: flex;
+  align-items: center;
+  height: var(--history-bar-height);
+  padding: 0 8px 0 12px;
+  background: var(--color-history-bg);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+  overflow: hidden;
+  gap: 4px;
+}
+
+.history-bar-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.history-panel-inner {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  overflow-x: auto;
+  flex: 1;
+  padding: 3px 0;
+  min-width: 0;
+}
+
+.history-panel-inner::-webkit-scrollbar {
+  height: 3px;
+}
+
+.history-empty {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* ── Document tab list ────────────────────────────────────── */
+.doc-tab-list {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.doc-tab-list::-webkit-scrollbar {
+  height: 3px;
+}
+
+/* Individual tab */
+.doc-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 6px 0 10px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  flex-shrink: 0;
+  max-width: 180px;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  user-select: none;
+}
+
+.doc-tab:hover {
+  background: var(--color-history-item-hover);
+  color: var(--color-text);
+}
+
+.doc-tab.is-active {
+  background: var(--color-history-item-bg);
+  border-color: var(--color-border);
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+/* Tab label */
+.doc-tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Unsaved-changes dot */
+.doc-tab-dirty {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  flex-shrink: 0;
+}
+
+/* Inline rename input */
+.doc-tab-rename-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--color-text);
+  font-size: 12px;
+  font-family: var(--font-ui);
+  width: 100px;
+  padding: 0;
+  flex: 1;
+}
+
+/* Action buttons container (rename + delete) */
+.doc-tab-actions {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.doc-tab:hover .doc-tab-actions,
+.doc-tab.is-active .doc-tab-actions {
+  opacity: 1;
+}
+
+/* Shared action button style */
+.doc-tab-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+  transition: background 0.12s, color 0.12s;
+}
+
+.doc-tab-rename:hover {
+  background: var(--color-history-item-hover);
+  color: var(--color-accent);
+}
+
+.doc-tab-delete:hover:not(:disabled) {
+  background: var(--color-history-item-hover);
+  color: var(--color-error-text);
+}
+
+.doc-tab-delete:disabled {
+  cursor: not-allowed;
+  opacity: 0.25;
+}
+
+/* "New document" button */
+.doc-new-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px dashed var(--color-border);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-left: 8px;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.doc-new-btn:hover {
+  background: var(--color-history-item-hover);
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+/* ── Legacy history item styles (kept for reference) ──────── */
+.history-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  background: var(--color-history-item-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  height: 26px;
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  max-width: 220px;
+}
+
+.history-item:hover {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 15%, transparent);
+}
+
+.history-item-label-btn {
+  display: flex;
+  align-items: center;
+  background: transparent;
+  border: none;
+  padding: 0 10px 0 12px;
+  height: 100%;
+  cursor: pointer;
+  color: var(--color-history-item-text);
+  font-size: 12px;
+  font-family: var(--font-ui);
+  min-width: 0;
+  flex: 1;
+  text-align: left;
+}
+
+.history-item-label-btn:hover {
+  color: var(--color-accent);
+}
+
+.history-item-label {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 140px;
+}
+
+.history-rename-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--color-text);
+  font-size: 12px;
+  font-family: var(--font-ui);
+  width: 120px;
+  padding: 0;
+}
+
+.history-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding-right: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+
+.history-item:hover .history-item-actions,
+.history-item:focus-within .history-item-actions {
+  opacity: 1;
+}
+
+.history-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  transition: background 0.12s, color 0.12s;
+  flex-shrink: 0;
+}
+
+.history-action-btn:hover {
+  background: var(--color-history-item-hover);
+}
+
+.history-action-rename:hover {
+  color: var(--color-accent);
+}
+
+.history-action-delete:hover {
+  color: var(--color-error-text);
+  background: color-mix(in srgb, var(--color-error-text) 12%, transparent);
+}
+
+/* ── Main layout: left/right panels ──────────────────────── */
+.app-layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.panel-divider {
+  width: 5px;
+  background: var(--color-border);
+  flex-shrink: 0;
+  position: relative;
+  transition: background 0.15s;
+}
+
+.panel-divider--resizable {
+  cursor: col-resize;
+}
+
+.panel-divider--resizable:hover,
+.panel-divider--dragging {
+  background: var(--color-accent);
+}
+
+/* Visual handle indicator */
+.panel-divider--resizable::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 3px;
+  height: 32px;
+  border-radius: 2px;
+  background: var(--color-text-muted);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.panel-divider--resizable:hover::after,
+.panel-divider--dragging::after {
+  opacity: 1;
+}
+
+/* ── Panel header ─────────────────────────────────────────── */
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 36px;
+  padding: 0 12px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.panel-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* ── Panel body ───────────────────────────────────────────── */
+.panel-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: auto;
+  min-height: 0;
+}
+
+/* ── CodeMirror editor container ─────────────────────────── */
+#input-panel {
+  overflow: hidden;
+}
+
+#input-panel .cm-editor {
+  height: 100%;
+  background: var(--color-surface-alt);
+}
+
+#input-panel .cm-editor.cm-focused {
+  outline: none;
+}
+
+#input-panel .cm-scroller {
+  font-family: var(--font-mono);
+  font-size: var(--editor-font-size, 13px);
+  line-height: 1.6;
+}
+
+/* ── Preview wrapper (gutter + code) ─────────────────────── */
+.preview-wrapper {
+  display: flex;
+  min-height: 100%;
+  background: var(--color-surface-alt);
+}
+
+/* ── Preview gutter (line numbers + fold icons) ───────────── */
+.preview-gutter {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 0;
+  background: var(--color-gutter-bg);
+  border-right: 1px solid var(--color-gutter-border);
+  color: var(--color-gutter-text);
+  font-family: var(--font-mono);
+  font-size: var(--editor-font-size, 13px);
+  line-height: 1.6;
+  user-select: none;
+  flex-shrink: 0;
+  min-width: 56px;
+}
+
+/* One row per visible line */
+.gutter-row {
+  display: flex;
+  align-items: center;
+  height: calc(1.6em);
+  padding: 0 4px 0 12px;
+  position: relative;
+}
+
+.gutter-row--blank {
+  /* blank separator row — no number, no button */
+}
+
+/* Line number */
+.gutter-num {
+  display: block;
+  min-width: 28px;
+  text-align: right;
+  white-space: pre;
+  color: var(--color-gutter-text);
+  line-height: 1.6;
+}
+
+/* Fold toggle button — lives in gutter, hidden until row hover */
+.gutter-fold {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 3px;
+  border-radius: 3px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 8px;
+  cursor: pointer;
+  padding: 0;
+  opacity: 0;
+  flex-shrink: 0;
+  transition: opacity 0.12s, color 0.12s, background 0.12s;
+}
+
+/* Show fold button when hovering the gutter row */
+.gutter-row:hover .gutter-fold {
+  opacity: 1;
+}
+
+/* Show ALL fold buttons when hovering anywhere on the gutter */
+.preview-gutter:hover .gutter-fold {
+  opacity: 1;
+}
+
+.gutter-fold:hover {
+  color: var(--color-accent);
+  background: var(--color-history-item-hover);
+}
+
+/* ── Preview code block ───────────────────────────────────── */
+.preview-code {
+  margin: 0;
+  padding: 16px;
+  background: var(--color-surface-alt);
+  font-family: var(--font-mono);
+  font-size: var(--editor-font-size, 13px);
+  line-height: 1.6;
+  white-space: pre;
+  overflow: visible;
+  flex: 1;
+}
+
+.preview-code code {
+  font-family: inherit;
+  font-size: inherit;
+  background: transparent;
+}
+
+.preview-code.is-placeholder code {
+  color: var(--color-placeholder);
+  font-style: italic;
+}
+
+/* ── Fold blocks (inside code area) ──────────────────────── */
+
+/* Collapsed summary — inline italic, no block elements */
+.fold-summary {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* ── Error banner ─────────────────────────────────────────── */
+.preview-error {
+  padding: 8px 16px;
+  background: var(--color-error-bg);
+  color: var(--color-error-text);
+  font-size: 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* ── Copy button ──────────────────────────────────────────── */
+.copy-button-container {
+  display: flex;
+  align-items: center;
+}
+
+/* ── Save button ──────────────────────────────────────────── */
+.save-button-container {
+  display: flex;
+  align-items: center;
+}
+
+.copy-btn {
+  background: transparent;
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius);
+  padding: 3px 12px;
+  font-size: 12px;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  white-space: nowrap;
+}
+
+.copy-btn:hover:not(:disabled) {
+  color: var(--color-text);
+  border-color: var(--color-accent);
+}
+
+.copy-btn:disabled {
+  cursor: default;
+}
+
+.copy-btn--success {
+  color: var(--color-success-text);
+  border-color: var(--color-success-text);
+  background: var(--color-success-bg);
+}
+
+.copy-btn--error {
+  color: var(--color-error-text);
+  border-color: var(--color-error-text);
+  background: var(--color-error-bg);
+}
+
+/* ── Scrollbar styling (Webkit) ───────────────────────────── */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-surface);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* ── Panel shortcuts hint ─────────────────────────────────── */
+.panel-shortcuts {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex: 1;
+  justify-content: center;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.panel-shortcuts kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  padding: 0 4px;
+  font-size: 10px;
+  font-family: var(--font-ui);
+  line-height: 16px;
+  color: var(--color-text-muted);
+  box-shadow: 0 1px 0 var(--color-border);
+}
+
+/* ── Responsive: stack panels on narrow viewports ─────────── */
+@media (max-width: 767px) {
+  .app-layout {
+    flex-direction: column;
+  }
+
+  .panel-divider {
+    width: 100%;
+    height: 4px;
+    cursor: default;
+  }
+
+  .panel-divider--resizable {
+    cursor: default;
+  }
+
+  .panel-divider--resizable::after {
+    display: none;
+  }
+
+  .panel {
+    flex: none;
+    height: 50vh;
+  }
+
+  .app-header {
+    height: auto;
+    padding: 8px 12px;
+  }
+
+  .config-panel {
+    justify-content: flex-start;
+  }
+
+  .history-bar {
+    height: auto;
+    padding: 6px 12px;
+    flex-wrap: wrap;
+  }
+}
