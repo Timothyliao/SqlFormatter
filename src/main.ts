@@ -9,6 +9,9 @@ import { ResizableDivider } from './ui/ResizableDivider';
 import { ThemeToggle } from './ui/ThemeToggle';
 import { HistoryPanel } from './ui/HistoryPanel';
 import { SaveButton } from './ui/SaveButton';
+import { EvolutionWidget } from './fun/EvolutionWidget';
+import { EasterEgg } from './fun/EasterEgg';
+import { EggBook } from './fun/EggBook';
 
 function main(): void {
   const inputContainer = document.getElementById('input-panel');
@@ -57,6 +60,11 @@ function main(): void {
     saveButton = new SaveButton(saveContainer);
   }
 
+  // Fun mode: evolution widget + easter eggs
+  const evolutionWidget = new EvolutionWidget();
+  const easterEgg = new EasterEgg(evolutionWidget);
+  new EggBook(easterEgg);
+
   // Wire everything together
   const controller = new AppController(
     inputPanel,
@@ -66,6 +74,8 @@ function main(): void {
     highlighter,
     historyPanel,
     saveButton,
+    evolutionWidget,
+    easterEgg,
   );
 
   controller.init();

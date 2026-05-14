@@ -6,6 +6,8 @@ import type { PreviewPanel } from '../ui/PreviewPanel';
 import type { ConfigPanel } from '../ui/ConfigPanel';
 import type { HistoryPanel } from '../ui/HistoryPanel';
 import type { SaveButton } from '../ui/SaveButton';
+import type { EvolutionWidget } from '../fun/EvolutionWidget';
+import type { EasterEgg } from '../fun/EasterEgg';
 
 /**
  * AppController — orchestrates the formatting pipeline.
@@ -38,6 +40,8 @@ export class AppController {
     private highlighter: Highlighter,
     private historyPanel?: HistoryPanel,
     private saveButton?: SaveButton,
+    private evolutionWidget?: EvolutionWidget,
+    private easterEgg?: EasterEgg,
   ) {
     this.config = configPanel.getConfig();
   }
@@ -176,6 +180,10 @@ export class AppController {
 
     const highlighted = this.highlighter.highlight(result.text, this.config.dialect);
     this.previewPanel.setContent(highlighted);
+
+    // Fun mode: update evolution widget + check easter eggs
+    this.evolutionWidget?.update(sql);
+    this.easterEgg?.check(sql);
   }
 
   private applyFontSize(size: number): void {
