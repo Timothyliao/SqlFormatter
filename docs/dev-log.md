@@ -395,3 +395,76 @@ Test Files  5 passed (5)
      Tests  73 passed (73)
   Duration  ~3.0s
 ```
+
+---
+
+## 2026-05-14 | v1.7.0 — SQL 进化论 + 彩蛋系统
+
+### 需求背景
+
+为工具增加趣味性和惊喜感。两个核心功能：
+1. **SQL 进化论**：右下角常驻一个「生命体」，随 SQL 复杂度实时进化/退化
+2. **彩蛋触发器**：特定 SQL 输入触发隐藏彩蛋效果，有收集图鉴
+
+---
+
+### 变更文件清单
+
+| 文件 | 变更类型 | 说明 |
+|------|----------|------|
+| `src/fun/FunMode.ts` | 新增 | 全局开关单例，`isEnabled()` / `setEnabled()`，默认 `true` |
+| `src/fun/SqlComplexity.ts` | 新增 | SQL 复杂度评分算法（行数/JOIN/子查询/CTE/窗口函数/UNION），7 级进化定义 |
+| `src/fun/EvolutionWidget.ts` | 新增 | 可拖拽、边缘吸附的进化生命体组件；消息队列（terminal/toast/tagline 依次播放，500ms 间隔）；方向自适应气泡 |
+| `src/fun/EasterEgg.ts` | 新增 | 8 个彩蛋检测与触发（核弹拦截、删库跑路、清空宇宙、全表扫描、宇宙答案、虚无哲学家、极简主义者、史诗级查询）；发现记录持久化 localStorage |
+| `src/fun/EggBook.ts` | 新增 | 彩蛋图鉴面板，点击 `✦` 打开，显示已发现/未发现状态 |
+| `src/controller/AppController.ts` | 修改 | `runPipeline()` 末尾调用 `evolutionWidget.update()` 和 `easterEgg.check()` |
+| `src/main.ts` | 修改 | 实例化 EvolutionWidget、EasterEgg、EggBook 并传入 AppController |
+| `src/styles/main.css` | 修改 | 新增进化组件样式（拖拽、吸附动画、彩虹边框）、终端气泡样式（方向自适应、打字机效果）、彩蛋效果样式（屏幕抖动、蒸发动画、彩带）、图鉴面板样式 |
+
+---
+
+### 关键设计决策
+
+#### 1. FunMode 开关
+全局单例，默认开启。后续可通过任何触发方式（Konami Code、Logo 点击、URL 参数）调用 `FunMode.setEnabled(true/false)`，其他代码零改动。
+
+#### 2. 消息队列
+所有弹出内容（terminal 气泡、toast、tagline）统一进入 FIFO 队列，`processNext()` 每次只播放一条，播放完成后等 500ms 再取下一条，避免消息堆叠。
+
+#### 3. 可拖拽 + 边缘吸附
+mousedown 开始跟踪，mousemove 自由拖动，mouseup 计算距四条边的距离，吸附到最近的边。位置持久化到 localStorage，刷新后恢复。
+
+#### 4. 方向自适应
+气泡、tooltip、toast、tagline 的弹出方向根据当前吸附边自动调整：
+- 吸附右边 → 向左上弹出
+- 吸附左边 → 向右上弹出
+- 吸附底部 → 向右上弹出
+- 吸附顶部 → 向右下弹出
+
+#### 5. 不打断操作
+所有彩蛋效果通过生命体旁边的气泡展示，不使用全屏遮罩，用户可以继续正常操作。终端气泡用打字机效果逐行出现，自动消失。
+
+#### 6. 彩蛋冷却
+同一个彩蛋 8 秒内不重复触发，每次 pipeline 只触发一个彩蛋（优先级按定义顺序）。
+
+#### 7. 进化评分算法
+| 维度 | 权重 |
+|------|------|
+| 行数 | ×1 |
+| JOIN | ×3 |
+| 子查询 | ×5 |
+| CTE | ×4 |
+| 窗口函数 | ×6 |
+| UNION | ×3 |
+
+7 级进化：🦠(0-10) → 🐛(11-30) → 🐟(31-60) → 🦎(61-100) → 🦕(101-150) → 🧠(151-200) → 👾(201+)
+
+---
+
+### 测试结果
+
+```
+Test Files  5 passed (5)
+     Tests  73 passed (73)
+  Duration  ~2.6s
+```
