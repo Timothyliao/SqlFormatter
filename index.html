@@ -8,49 +8,7 @@
     <link rel="stylesheet" href="/src/styles/main.css" />
   </head>
   <body>
-    <div class="app-root">
-      <!-- Header -->
-      <header class="app-header">
-        <h1 class="app-title">SQL Formatter</h1>
-        <div id="config-panel" class="config-panel"></div>
-        <div id="theme-toggle" class="theme-toggle-container"></div>
-      </header>
-
-      <!-- Document tabs bar -->
-      <div class="history-bar" aria-label="SQL 文档">
-        <div id="history-panel" class="history-panel-inner"></div>
-      </div>
-
-      <!-- Main layout: left input, right preview -->
-      <main class="app-layout">
-        <!-- Left: Input Panel -->
-        <section class="panel panel-input" aria-label="SQL 输入">
-          <div class="panel-header">
-            <span class="panel-label">输入 SQL</span>
-            <div id="save-button" class="save-button-container"></div>
-          </div>
-          <div id="input-panel" class="panel-body"></div>
-        </section>
-
-        <!-- Resizable divider -->
-        <div id="panel-divider" class="panel-divider" aria-hidden="true"></div>
-
-        <!-- Right: Preview Panel -->
-        <section class="panel panel-preview" aria-label="格式化预览">
-          <div class="panel-header">
-            <span class="panel-label">格式化结果</span>
-            <span class="panel-shortcuts" aria-label="快捷键说明">
-              <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>[</kbd> 折叠全部
-              &nbsp;·&nbsp;
-              <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>]</kbd> 展开全部
-            </span>
-            <div id="copy-button" class="copy-button-container"></div>
-          </div>
-          <div id="preview-panel" class="panel-body"></div>
-        </section>
-      </main>
-    </div>
-
+    <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

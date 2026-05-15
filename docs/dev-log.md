@@ -468,3 +468,159 @@ Test Files  5 passed (5)
      Tests  73 passed (73)
   Duration  ~2.6s
 ```
+
+---
+
+## 2026-05-14 | v2.0.0 — Vue 3 + Pinia 架构迁移
+
+### 迁移目标
+
+将 SQL Formatter 从原生 TypeScript + 手写 DOM 架构一次性迁移至 Vue 3 + Composition API + `<script setup>`，保持所有现有功能不变。
+
+---
+
+### 变更文件清单
+
+#### 新增文件
+
+| 文件 | 说明 |
+|------|------|
+| `src/env.d.ts` | Vue SFC 类型声明 |
+| `src/App.vue` | 根组件，整体布局骨架，全局快捷键，markDirty/autoSave 逻辑 |
+| `src/stores/themeStore.ts` | 主题状态，localStorage 持久化，watch 同步 data-theme |
+| `src/stores/uiStore.ts` | 字体大小、面板宽度比例，watch 同步 CSS 变量 |
+| `src/stores/formatterStore.ts` | SQL 内容、格式化输出、pipeline（watchDebounced 250ms） |
+| `src/stores/historyStore.ts` | 文档 tab 管理、localStorage 持久化、switchTo/newDocument/deleteDoc |
+| `src/utils/previewParser.ts` | 从 PreviewPanel.ts 提取的纯函数：parseBlocks/buildGutterRows/buildCodeHtml/escapeHtml/unescapeHtml |
+| `src/utils/sqlCap.ts` | 从 HistoryPanel.ts 提取的 capSql 纯函数 |
+| `src/composables/useEvoWidget.ts` | EvolutionWidget 拖拽吸附逻辑 composable |
+| `src/components/ThemeToggle.vue` | 主题切换开关组件 |
+| `src/components/ConfigPanel.vue` | 方言选择 + 设置弹窗组件 |
+| `src/components/InputPanel.vue` | CodeMirror 6 编辑器封装，Compartment 热替换主题 |
+| `src/components/PreviewPanel.vue` | 折叠/行号/高亮展示，defineExpose foldAll/unfoldAll/getPlainText |
+| `src/components/HistoryPanel.vue` | 文档 tab 管理 UI |
+| `src/components/CopyButton.vue` | 复制按钮 |
+| `src/components/SaveButton.vue` | 保存按钮 |
+| `src/components/ResizableDivider.vue` | 拖拽分隔线，写入 uiStore.leftPanelPct |
+| `src/components/fun/EvolutionWidget.vue` | 进化论小部件 Vue 组件 |
+| `src/components/fun/EggBook.vue` | 彩蛋图鉴弹窗 Vue 组件 |
+| `tests/previewParser.test.ts` | previewParser 纯函数单元测试（替代 preview-panel.test.ts） |
+| `tests/formatterStore.test.ts` | formatterStore pipeline 测试 |
+| `tests/historyStore.test.ts` | historyStore 文档管理测试 |
+
+#### 修改文件
+
+| 文件 | 变更说明 |
+|------|---------|
+| `package.json` | 新增 vue/pinia/@vueuse/core/@vitejs/plugin-vue/@vue/test-utils/vue-tsc，版本升至 2.0.0 |
+| `vite.config.ts` | 添加 @vitejs/plugin-vue 插件 |
+| `tsconfig.json` | 添加 jsx/jsxImportSource，include 扩展到 tests |
+| `index.html` | 简化为单 `<div id="app">` |
+| `src/main.ts` | 改为 createApp(App).use(createPinia()).mount('#app') |
+| `src/fun/EasterEgg.ts` | 提取 IEvolutionWidget 接口，解耦具体类依赖 |
+| `src/fun/EvolutionWidget.ts` | 实现 IEvolutionWidget 接口 |
+| `tests/integration.test.ts` | 迁移为使用 previewParser 纯函数（移除 PreviewPanel DOM 依赖） |
+| `tests/highlighter.test.ts` | 移除未使用的 stripped 变量 |
+
+#### 删除文件
+
+| 文件 | 原因 |
+|------|------|
+| `tests/app-controller.test.ts` | 逻辑已分散到 formatterStore.test.ts + historyStore.test.ts |
+| `tests/preview-panel.test.ts` | 替换为 previewParser.test.ts（纯函数，无 DOM 依赖） |
+
+---
+
+### 关键设计决策
+
+1. **Store 单向依赖**：formatterStore 不依赖 historyStore，markDirty/autoSave 逻辑移至 App.vue 的 watchDebounced，避免循环依赖。historyStore 的 switchTo/newDocument/deleteDoc 返回新 sql 字符串，由调用方（HistoryPanel.vue）负责更新 formatterStore.sql。
+
+2. **isRestoringFromHistory 标志位**：在 HistoryPanel.vue 的 handleTabClick/handleNewDocument/handleDeleteDoc 中设置，用 setTimeout(0) 在下一个 tick 清除，防止历史恢复触发 markDirty。
+
+3. **CodeMirror 主题热替换**：InputPanel.vue 使用 Compartment.reconfigure()，watch themeStore.theme 变化，不重建 EditorView 实例。
+
+4. **PreviewPanel 纯函数化**：parseBlocks/buildGutterRows/buildCodeHtml 提取为无 DOM 依赖的纯函数，组件只负责响应式状态和 v-for 渲染，大幅提升可测试性。
+
+5. **EvolutionWidget 拖拽**：拖拽过程中直接操作 el.style（不走响应式），mouseup 时才将吸附位置写入 snapEdge/snapOffset ref（持久化用）。
+
+6. **ConfigPanel 弹窗**：使用 Teleport to="body" + v-show + CSS transition，pendingConfig 本地 reactive，点击"应用"才写入 formatterStore.config。
+
+---
+
+### 测试结果
+
+- `npm run build`：零编译错误，零 TypeScript 错误
+- `npm run test -- --run`：86 个测试全部通过（6 个测试文件）
+- 构建产物：684.78 kB（gzip: 215.01 kB）
+
+---
+
+## 2026-05-15 | v2.0.1 — 修复 Ctrl+S 无视觉反馈 Bug
+
+### 问题描述
+
+按下 Ctrl+S 后，保存按钮没有任何状态变化（不显示"已保存 ✓"），用户感觉快捷键无效。
+
+### 根因分析
+
+`App.vue` 的全局键盘事件监听器直接调用 `historyStore.saveActiveDoc()`，绕过了 `SaveButton.vue` 的状态机（`idle → saving → saved`）。保存操作确实执行了，但没有触发按钮的视觉反馈。
+
+### 修复方案
+
+1. **SaveButton.vue**：新增 `defineExpose({ triggerSave: handleClick })`，将保存动作暴露给父组件
+2. **App.vue**：
+   - 模板中给 `<SaveButton>` 添加 `ref="saveBtnRef"`
+   - script 中声明 `saveBtnRef = ref<InstanceType<typeof SaveButton>>()`
+   - Ctrl+S 处理改为调用 `saveBtnRef.value?.triggerSave()`，移除直接调用 `historyStore.saveActiveDoc()`
+
+### 变更文件清单
+
+| 文件 | 变更类型 | 说明 |
+|------|----------|------|
+| `src/components/SaveButton.vue` | 修改 | 新增 `defineExpose({ triggerSave: handleClick })` |
+| `src/App.vue` | 修改 | 添加 `saveBtnRef`；Ctrl+S 改为调用 `saveBtnRef.value?.triggerSave()` |
+
+### 测试结果
+
+```
+Test Files  6 passed (6)
+     Tests  86 passed (86)
+  Duration  ~16s
+```
+
+---
+
+## 2026-05-15 | v2.0.2 — 重构 Ctrl+S 修复方案（移除命令式耦合）
+
+### 问题背景
+
+v2.0.1 的修复方案（`App.vue` 持有 `saveBtnRef` 并调用 `triggerSave()`）引入了父调子的命令式耦合，违背单向数据流原则：快捷键的执行路径被绑定到一个 UI 子组件，若 `SaveButton` 未挂载则静默失效。
+
+### 重构方案
+
+将保存状态提升到 `historyStore`，`SaveButton` 改为纯响应式组件。
+
+```
+Ctrl+S / 按钮点击
+  → historyStore.saveActiveDoc()   ← 业务逻辑，唯一入口
+  → historyStore.saveStatus        ← 状态提升到 store
+
+SaveButton
+  → computed(historyStore.saveStatus)  ← 纯响应式，无 defineExpose
+```
+
+### 变更文件清单
+
+| 文件 | 变更类型 | 说明 |
+|------|----------|------|
+| `src/stores/historyStore.ts` | 修改 | 新增 `SaveStatus` 类型、`saveStatus` ref、`setSaveStatus()` 私有方法；`saveActiveDoc()` 成功/失败时更新 `saveStatus`，1500ms 后自动重置为 `idle`；`saveStatus` 加入 return |
+| `src/components/SaveButton.vue` | 重构 | 移除自有状态机和 `defineExpose`；改为 `computed(historyStore.saveStatus)` 驱动 label 和 class；`handleClick` 直接调用 `historyStore.saveActiveDoc()` |
+| `src/App.vue` | 修改 | 移除 `saveBtnRef`；Ctrl+S 改回直接调用 `historyStore.saveActiveDoc(formatterStore.sql)` |
+
+### 测试结果
+
+```
+Test Files  6 passed (6)
+     Tests  86 passed (86)
+  Duration  ~3.6s
+```

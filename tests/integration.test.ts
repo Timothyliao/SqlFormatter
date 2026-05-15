@@ -1,13 +1,13 @@
 /**
- * Task 9.2 — Integration tests
+ * integration.test.ts — Integration tests for the full pipeline
  *
- * Tests the full pipeline: InputPanel → AppController → Formatter → Highlighter → PreviewPanel
- * Tests the copy flow: CopyButton → PreviewPanel.getPlainText() → clipboard
+ * Tests the full pipeline: Formatter → Highlighter → previewParser
+ * Tests the copy flow: getPlainTextFromBlocks → clipboard
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Formatter } from '../src/formatter/Formatter';
 import { Highlighter } from '../src/highlighter/Highlighter';
-import { PreviewPanel } from '../src/ui/PreviewPanel';
+import { parseBlocks, getPlainTextFromBlocks } from '../src/utils/previewParser';
 
 const BASE_CONFIG = {
   dialect: 'postgresql' as const,
@@ -25,10 +25,7 @@ describe('完整格式化流水线集成测试', () => {
   const formatter = new Formatter();
   const highlighter = new Highlighter();
 
-  it('SELECT 语句：格式化 → 高亮 → 预览面板', () => {
-    const container = document.createElement('div');
-    const panel = new PreviewPanel(container);
-
+  it('SELECT 语句：格式化 → 高亮 → 解析 → 纯文本', () => {
     const sql = `select id,name,email from users where status='active' and age>18 order by name`;
     const config = { ...BASE_CONFIG };
 
@@ -36,9 +33,8 @@ describe('完整格式化流水线集成测试', () => {
     expect(result.error).toBeUndefined();
 
     const html = highlighter.highlight(result.text, config.dialect);
-    panel.setContent(html);
-
-    const plainText = panel.getPlainText();
+    const blocks = parseBlocks(html);
+    const plainText = getPlainTextFromBlocks(blocks);
 
     // 关键字应大写
     expect(plainText).toMatch(/SELECT/);
@@ -50,10 +46,7 @@ describe('完整格式化流水线集成测试', () => {
     expect(plainText).not.toMatch(/<[^>]+>/);
   });
 
-  it('多语句：格式化 → 高亮 → 预览面板，语句间有空行', () => {
-    const container = document.createElement('div');
-    const panel = new PreviewPanel(container);
-
+  it('多语句：格式化 → 高亮 → 解析，语句间有空行', () => {
     const sql = `SELECT 1; SELECT 2; SELECT 3;`;
     const config = { ...BASE_CONFIG };
 
@@ -61,18 +54,15 @@ describe('完整格式化流水线集成测试', () => {
     expect(result.error).toBeUndefined();
 
     const html = highlighter.highlight(result.text, config.dialect);
-    panel.setContent(html);
+    const blocks = parseBlocks(html);
+    const plainText = getPlainTextFromBlocks(blocks);
 
-    const plainText = panel.getPlainText();
     expect(plainText).not.toMatch(/<[^>]+>/);
     // 应有空行分隔
     expect(result.text).toMatch(/\n\n/);
   });
 
-  it('IN 子句分组：格式化 → 高亮 → 预览面板', () => {
-    const container = document.createElement('div');
-    const panel = new PreviewPanel(container);
-
+  it('IN 子句分组：格式化 → 高亮 → 解析', () => {
     const sql = `SELECT * FROM orders WHERE shop_id IN (1, 2, 3, 4, 5, 6, 7, 8, 9)`;
     const config = { ...BASE_CONFIG };
 
@@ -85,33 +75,21 @@ describe('完整格式化流水线集成测试', () => {
     expect(result.text).toMatch(/7, 8, 9/);
 
     const html = highlighter.highlight(result.text, config.dialect);
-    panel.setContent(html);
+    const blocks = parseBlocks(html);
+    const plainText = getPlainTextFromBlocks(blocks);
 
-    const plainText = panel.getPlainText();
     expect(plainText).not.toMatch(/<[^>]+>/);
     expect(plainText).toContain('IN');
   });
 
-  it('无效 SQL：降级展示原始文本，错误信息可见', () => {
-    const container = document.createElement('div');
-    const panel = new PreviewPanel(container);
-
-    const formatter2 = new Formatter();
+  it('无效 SQL：降级展示原始文本', () => {
     const sql = 'SELECT * FROM';
     const config = { ...BASE_CONFIG };
 
-    const result = formatter2.format(sql, config);
+    const result = formatter.format(sql, config);
     expect(result.text.length).toBeGreaterThan(0);
-
-    if (result.error) {
-      panel.setError(result.error, result.text);
-      const errorEl = container.querySelector('.preview-error') as HTMLElement;
-      expect(errorEl.hidden).toBe(false);
-    } else {
-      const html = highlighter.highlight(result.text, config.dialect);
-      panel.setContent(html);
-      expect(panel.getPlainText().length).toBeGreaterThan(0);
-    }
+    // Whether error or not, text should be non-empty
+    expect(typeof result.text).toBe('string');
   });
 
   it('不同方言产生不同格式化结果', () => {
@@ -143,7 +121,6 @@ describe('完整格式化流水线集成测试', () => {
     const config = { ...BASE_CONFIG, commaPosition: 'before' as const };
     const result = formatter.format(sql, config);
     expect(result.error).toBeUndefined();
-    // 行首逗号：逗号出现在行的开头（前面只有空白）
     expect(result.text).toMatch(/^\s*,/m);
   });
 
@@ -152,13 +129,12 @@ describe('完整格式化流水线集成测试', () => {
     const config = { ...BASE_CONFIG, linesBetweenQueries: 2 as const };
     const result = formatter.format(sql, config);
     expect(result.error).toBeUndefined();
-    // 两个空行 = 三个连续换行
     expect(result.text).toMatch(/\n\n\n/);
   });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CopyButton → PreviewPanel.getPlainText() → clipboard
+// Copy flow: getPlainTextFromBlocks → clipboard
 // ─────────────────────────────────────────────────────────────────────────────
 describe('复制功能集成测试', () => {
   let writeTextMock: ReturnType<typeof vi.fn>;
@@ -176,14 +152,10 @@ describe('复制功能集成测试', () => {
     vi.restoreAllMocks();
   });
 
-  it('getPlainText() 写入剪贴板的内容不含 HTML 标签', async () => {
-    const container = document.createElement('div');
-    const panel = new PreviewPanel(container);
-
+  it('getPlainTextFromBlocks 写入剪贴板的内容不含 HTML 标签', async () => {
     const html = `<span class="hljs-keyword">SELECT</span> <span class="hljs-title">id</span>\n<span class="hljs-keyword">FROM</span> users`;
-    panel.setContent(html);
-
-    const plainText = panel.getPlainText();
+    const blocks = parseBlocks(html);
+    const plainText = getPlainTextFromBlocks(blocks);
 
     await navigator.clipboard.writeText(plainText);
 
@@ -196,8 +168,6 @@ describe('复制功能集成测试', () => {
   });
 
   it('完整流水线后复制内容与格式化文本一致', async () => {
-    const container = document.createElement('div');
-    const panel = new PreviewPanel(container);
     const formatter = new Formatter();
     const highlighter = new Highlighter();
 
@@ -206,13 +176,12 @@ describe('复制功能集成测试', () => {
 
     const result = formatter.format(sql, config);
     const html = highlighter.highlight(result.text, config.dialect);
-    panel.setContent(html);
+    const blocks = parseBlocks(html);
+    const plainText = getPlainTextFromBlocks(blocks);
 
-    const plainText = panel.getPlainText();
     await navigator.clipboard.writeText(plainText);
 
     const writtenText = writeTextMock.mock.calls[0][0] as string;
-
     expect(writtenText).not.toMatch(/<[^>]+>/);
     expect(writtenText).toContain('SELECT');
     expect(writtenText).toContain('FROM');

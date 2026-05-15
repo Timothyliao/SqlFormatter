@@ -58,9 +58,6 @@ describe('Property 3: 高亮输出保留原始文本', () => {
   it('输出是有效 HTML（不含裸露的 < > 字符，除了标签内）', () => {
     const sql = `SELECT a < b FROM t WHERE x > 0`;
     const html = highlighter.highlight(sql, 'postgresql');
-    // 剥离标签后不应有未转义的 < >
-    const stripped = stripTags(html);
-    // stripped 中的 < > 应该是 &lt; &gt; 形式，或者 hljs 已经转义
     // 验证原始 html 中 < 只出现在标签内
     const htmlWithoutTags = html.replace(/<[^>]+>/g, '');
     expect(htmlWithoutTags).not.toMatch(/<(?!\/)/); // 不含未闭合的 <

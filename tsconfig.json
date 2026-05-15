@@ -10,7 +10,9 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "skipLibCheck": true,
-    "outDir": "./dist"
+    "outDir": "./dist",
+    "jsx": "preserve",
+    "jsxImportSource": "vue"
   },
-  "include": ["src"]
+  "include": ["src", "tests"]
 }

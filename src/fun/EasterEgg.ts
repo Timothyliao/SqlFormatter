@@ -1,5 +1,4 @@
 import { FunMode } from './FunMode';
-import type { EvolutionWidget } from './EvolutionWidget';
 
 export interface EggDefinition {
   id: string;
@@ -8,8 +7,14 @@ export interface EggDefinition {
   trigger: (ctx: EggContext) => void;
 }
 
+/** Minimal widget interface required by EasterEgg */
+export interface IEvolutionWidget {
+  showToast(message: string, durationMs?: number): void;
+  showTerminal(lines: Array<{ text: string; cls?: string }>): void;
+}
+
 interface EggContext {
-  widget: EvolutionWidget;
+  widget: IEvolutionWidget;
 }
 
 const STORAGE_KEY = 'sql-formatter-eggbook';
@@ -152,7 +157,7 @@ export class EasterEgg {
   private lastTriggered: Map<string, number> = new Map();
   private readonly COOLDOWN_MS = 8000;
 
-  constructor(private widget: EvolutionWidget) {
+  constructor(private widget: IEvolutionWidget) {
     this.discovered = loadDiscovered();
   }
 

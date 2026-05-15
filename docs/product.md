@@ -1,6 +1,6 @@
 # SQL Formatter — 产品文档
 
-> 版本：1.7.0 | 更新日期：2026-05-14
+> 版本：2.0.0 | 更新日期：2026-05-14
 
 ---
 
@@ -265,19 +265,20 @@ SQL Formatter 是一个运行于浏览器端的纯前端 SQL 格式化工具。�
 
 ## 6. 技术架构
 
-### 6.1 整体架构
+### 6.1 整体架构（v2.0.0 Vue 版本）
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│                              UI 层                                        │
-│  InputPanel(CM6) │ ConfigPanel │ PreviewPanel │ CopyBtn │ Divider         │
-│  ThemeToggle     │ HistoryPanel                                           │
+│                              Vue 组件层                                   │
+│  InputPanel.vue │ ConfigPanel.vue │ PreviewPanel.vue │ CopyButton.vue     │
+│  ThemeToggle.vue │ HistoryPanel.vue │ ResizableDivider.vue                │
+│  fun/EvolutionWidget.vue │ fun/EggBook.vue                                │
 └──────────────────────────┬───────────────────────────────────────────────┘
-                           │ 事件（input / config change / theme / history）
+                           │ 读写 Pinia Store
                            ▼
 ┌──────────────────────────────────────────────────────────────────────────┐
-│                           控制器层                                        │
-│              AppController（防抖 + 流水线编排 + 历史管理）                │
+│                           Pinia Store 层                                  │
+│  formatterStore │ historyStore │ themeStore │ uiStore                     │
 └──────┬────────────────────────────────────────────┬──────────────────────┘
        │                                            │
        ▼                                            ▼
@@ -289,33 +290,41 @@ SQL Formatter 是一个运行于浏览器端的纯前端 SQL 格式化工具。�
 
 ### 6.2 核心模块
 
-#### ThemeToggle（v1.2.0 新增）
-管理明亮/暗黑主题切换。通过 `data-theme` 属性控制 CSS 变量切换，同时通过回调通知 InputPanel 切换 CodeMirror 主题（使用 Compartment 热替换）。主题偏好持久化到 `localStorage`，初始化时自动读取系统 `prefers-color-scheme`。
+#### formatterStore
+管理 SQL 内容、格式化配置、输出 HTML、错误信息。使用 `watchDebounced([sql, config], 250ms)` 触发格式化 pipeline。`isRestoringFromHistory` 标志位防止历史恢复时触发 markDirty。
 
-#### HistoryPanel（v1.4.0 重构为文档管理器，v1.5.0 增强）
-管理最多 5 个 SQL 文档（`SqlDocument[]`）。每个文档独立存储 SQL 内容，编辑时原地更新当前文档（不新建）。维护 `dirtyId` 标记未保存文档，切换标签前通过 `onFlushNeeded` 回调触发 AppController 立即保存。文档编号使用单调递增计数器（持久化到 localStorage），避免删除后编号重复。双击标签或点击铅笔图标可重命名。
+#### historyStore
+管理最多 5 个 SQL 文档（`SqlDocument[]`）。`switchTo(id, flushFn)` 先调用 flushFn 保存当前文档，再切换并返回新文档的 sql。文档编号使用单调递增计数器，localStorage 持久化。
 
-#### PreviewPanel（v1.2.0 增强）
-新增行号 gutter 区域（`preview-gutter`）。每次 `setContent()` 时解析 HTML 内容的行数并重建 gutter。行号与代码区域共享相同的字体大小和行高，确保对齐。
+#### themeStore
+使用 `useLocalStorage` 持久化主题，`watch` 同步写入 `document.documentElement.setAttribute('data-theme', ...)`。
 
-#### ConfigPanel（v1.2.0 增强）
-新增字体大小输入框（10–24px）。字体大小变更通过独立的 `onFontSizeChange` 回调通知 AppController，AppController 将值写入 CSS 自定义属性 `--editor-font-size`，编辑器和预览区均通过该变量响应变化。
+#### uiStore
+使用 `useLocalStorage` 持久化字体大小，`watch` 同步写入 `--editor-font-size` CSS 变量。`leftPanelPct` ref 由 ResizableDivider 写入。
+
+#### InputPanel.vue（最高难度）
+`onMounted` 创建 CodeMirror EditorView，`onUnmounted` 销毁。使用 Compartment 热替换主题，watch themeStore.theme 变化。watch formatterStore.sql 检测外部写入（历史恢复），同步到编辑器。
+
+#### PreviewPanel.vue
+`computed` 调用 `parseBlocks(formatterStore.outputHtml)`，`collapsed` ref 管理折叠状态，`v-for` 渲染 gutter，`v-html` 渲染代码区。`defineExpose` 暴露 foldAll/unfoldAll/getPlainText。
 
 ### 6.3 主题系统
 
-CSS 变量在 `:root` / `[data-theme='dark']` 和 `[data-theme='light']` 两个选择器下分别定义。切换时只需修改 `<html>` 的 `data-theme` 属性，所有颜色自动更新。CodeMirror 编辑器使用 Compartment 机制热替换主题扩展，无需重建编辑器实例。
+CSS 变量在 `[data-theme='dark']` 和 `[data-theme='light']` 两个选择器下分别定义。themeStore 的 watch 负责切换 `data-theme` 属性。CodeMirror 使用 Compartment 机制热替换主题扩展，无需重建编辑器实例。
 
 ### 6.4 技术选型
 
 | 技术 | 版本 | 选型理由 |
 |------|------|----------|
-| Vite | 4.5.3 | 快速构建，支持 Node 16，HMR 开发体验好 |
+| Vite | 4.5.3 | 快速构建，HMR 开发体验好 |
 | TypeScript | 5.4.5 | 类型安全，IDE 支持好 |
+| Vue 3 | 3.4.21 | Composition API + script setup，声明式模板，响应式状态管理 |
+| Pinia | 2.1.7 | Vue 官方推荐状态管理，TypeScript 友好，devtools 支持 |
+| @vueuse/core | 10.9.0 | watchDebounced、useLocalStorage、useEventListener，减少手写防抖代码 |
 | CodeMirror | 6.0 | 专业代码编辑器，按需加载，SQL 支持完善，Compartment 支持热替换主题 |
 | sql-formatter | 15.4.2 | 成熟的 SQL 格式化库，支持多方言 |
 | highlight.js | 11.9.0 | 轻量、按需加载、SQL 支持完善 |
 | Vitest | 0.34.6 | 与 Vite 生态一致，配置简单 |
-| 无 UI 框架 | — | 功能简单，原生 DOM 足够，减少依赖 |
 
 ---
 
