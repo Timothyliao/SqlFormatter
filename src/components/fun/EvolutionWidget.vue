@@ -2,7 +2,7 @@
   <div
     ref="containerRef"
     class="evo-widget"
-    :class="{ 'evo-widget--max': currentLevel === 7 }"
+    :class="{ 'evo-widget--max': currentLevel === 7, 'evo-widget--alert': isAlerting }"
     :style="widgetStyle"
     aria-label="SQL 进化论"
     @mouseenter="showTooltip"
@@ -90,7 +90,8 @@ const tooltipVisible = ref(false);
 type QueueItem =
   | { type: 'terminal'; lines: Array<{ text: string; cls?: string }> }
   | { type: 'toast'; message: string; durationMs: number }
-  | { type: 'tagline'; text: string };
+  | { type: 'tagline'; text: string }
+  | { type: 'alert'; durationMs: number };
 
 const queue: QueueItem[] = [];
 let queueBusy = false;
@@ -101,6 +102,7 @@ const toastVisible = ref(false);
 const toastText = ref('');
 const taglineVisible = ref(false);
 const taglineText = ref('');
+const isAlerting = ref(false);
 
 function enqueue(item: QueueItem): void {
   queue.push(item);
@@ -115,6 +117,7 @@ function processNext(): void {
     case 'terminal': playTerminal(item.lines); break;
     case 'toast':    playToast(item.message, item.durationMs); break;
     case 'tagline':  playTagline(item.text); break;
+    case 'alert':    playAlert(item.durationMs); break;
   }
 }
 
@@ -172,6 +175,18 @@ function playTagline(text: string): void {
     taglineVisible.value = false;
     setTimeout(() => doneAndNext(), 500);
   }, 2200);
+}
+
+function playAlert(durationMs: number): void {
+  // Temporarily replace emoji with 🚨 and activate alert border animation
+  const prevEmoji = emojiEl.value?.textContent ?? '';
+  if (emojiEl.value) emojiEl.value.textContent = '🚨';
+  isAlerting.value = true;
+  setTimeout(() => {
+    isAlerting.value = false;
+    if (emojiEl.value) emojiEl.value.textContent = prevEmoji;
+    doneAndNext();
+  }, durationMs);
 }
 
 // ── Popup positioning ─────────────────────────────────────────────────────────
@@ -258,6 +273,10 @@ const widgetApi: IEvolutionWidget = {
       }, { once: true });
     }
     enqueue({ type: 'terminal', lines });
+  },
+  showAlert: (durationMs = 3000) => {
+    if (!FunMode.isEnabled()) return;
+    enqueue({ type: 'alert', durationMs });
   },
 };
 

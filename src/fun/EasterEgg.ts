@@ -11,6 +11,7 @@ export interface EggDefinition {
 export interface IEvolutionWidget {
   showToast(message: string, durationMs?: number): void;
   showTerminal(lines: Array<{ text: string; cls?: string }>): void;
+  showAlert(durationMs?: number): void;
 }
 
 interface EggContext {
@@ -28,11 +29,6 @@ function loadDiscovered(): Set<string> {
 
 function saveDiscovered(ids: Set<string>): void {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify([...ids])); } catch { /* ignore */ }
-}
-
-function shakeScreen(): void {
-  document.body.classList.add('egg-shake');
-  setTimeout(() => document.body.classList.remove('egg-shake'), 600);
 }
 
 /**
@@ -68,13 +64,13 @@ export const EGG_DEFINITIONS: EggDefinition[] = [
     name: '核弹拦截',
     detect: sql => /\bDROP\s+TABLE\b/i.test(sql),
     trigger: ({ widget }) => {
-      shakeScreen();
+      widget.showAlert(3200);
       widget.showTerminal([
-        { text: '> CRITICAL ALERT DETECTED' },
-        { text: '> OPERATION: DROP TABLE' },
-        { text: '> INITIATING SELF-DESTRUCT...' },
-        { text: '> [████████████████] 3s' },
-        { text: '> INTERCEPTED ✓  DB SAVED', cls: 'evo-bubble-success' },
+        { text: '⚠ 检测到高危操作：DROP TABLE' },
+        { text: '> 启动紧急拦截协议...' },
+        { text: '> [██████░░░░░░░░░░░░] 拦截中' },
+        { text: '> [████████████████████] 完成' },
+        { text: '✓ 已拦截，数据库保住了！', cls: 'evo-bubble-success' },
       ]);
     },
   },

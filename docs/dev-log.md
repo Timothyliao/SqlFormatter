@@ -687,3 +687,31 @@ v2.0.3 的快捷键提示方案（hover tooltip）位置居中遮挡视线，且
 
 - `npm run build` ✓ 零编译错误
 - `npm run test -- --run` ✓ 86/86 通过
+
+---
+
+## 2026-05-15 | DROP TABLE 彩蛋重设计
+
+### 需求背景
+
+`nuclear` 彩蛋原先调用 `shakeScreen()` 导致整个 body 抖动，干扰感强、与其他彩蛋风格不一致。
+
+### 变更文件清单
+
+| 文件 | 变更类型 | 说明 |
+|------|----------|------|
+| `src/fun/EasterEgg.ts` | 修改 | 删除 `shakeScreen()` 函数及调用；`IEvolutionWidget` 新增 `showAlert()` 方法；terminal 文案改为中英混排 |
+| `src/components/fun/EvolutionWidget.vue` | 修改 | 实现 `showAlert()`：临时替换 emoji 为 🚨、激活 `evo-widget--alert` 红色闪烁动画；新增 `isAlerting` ref；queue 支持 `alert` 类型 |
+| `src/styles/main.css` | 修改 | 删除 `egg-shake-anim` 和 `body.egg-shake`；新增 `evo-alert-border-anim` 和 `.evo-widget--alert`（仅影响 widget 自身） |
+
+### 关键设计决策
+
+- **抖动范围收窄**：从 `body` 级别降为 widget 自身，不打断用户正在进行的操作
+- **showAlert 独立入队**：alert 和 terminal 分别入队，alert 先执行（红色闪烁），terminal 紧随其后（倒计时文案），两者时序自然衔接
+- **emoji 临时替换**：alert 期间将当前进化 emoji 换成 🚨，结束后恢复，视觉上有明确的"警报→解除"节奏
+- **文案中英混排**：保留终端风格的 `>` 前缀和进度条，关键信息用中文，兼顾国内用户可读性
+
+### 测试结果
+
+- `npm run build` ✓ 零编译错误
+- `npm run test -- --run` ✓ 86/86 通过
