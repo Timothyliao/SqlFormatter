@@ -624,3 +624,66 @@ Test Files  6 passed (6)
      Tests  86 passed (86)
   Duration  ~3.6s
 ```
+
+## 2026-05-15 | v2.0.3 — 格式化预览滚动快捷键 + 快捷键提示重设计
+
+### 需求背景
+
+格式化预览区缺少滚动到首行/末尾的快捷键；同时原有行内快捷键提示随着快捷键数量增加已放不下，需要重新设计展示方式。
+
+---
+
+### 变更文件清单
+
+| 文件 | 变更类型 | 说明 |
+|------|----------|------|
+| `src/components/PreviewPanel.vue` | 修改 | 新增 `previewWrapperRef`，暴露 `scrollToTop()` / `scrollToBottom()` 方法，通过 `closest('.panel-body')` 定位滚动容器 |
+| `src/App.vue` | 修改 | 注册 `Ctrl+Home` / `Ctrl+End` 快捷键；将行内快捷键提示替换为 `?` 图标 + hover tooltip |
+| `src/styles/main.css` | 修改 | 移除 `.panel-shortcuts` 旧样式，新增 `.panel-shortcuts-hint` / `.shortcuts-trigger` / `.shortcuts-tooltip` tooltip 样式 |
+
+---
+
+### 关键设计决策
+
+- **快捷键选择**：`Ctrl+Home` / `Ctrl+End` 是跨平台通用文本导航标准，语义明确，不与 CodeMirror 或系统快捷键冲突（`Ctrl+↑/↓` 在 macOS 会被系统拦截）
+- **滚动容器定位**：PreviewPanel 内部通过 `previewWrapperRef.closest('.panel-body')` 向上查找滚动容器，避免组件与外部 DOM 结构强耦合
+- **快捷键提示重设计**：从行内文字改为 `?` 图标 + CSS hover tooltip，header 空间不再随快捷键数量增加而拥挤，当前收录 4 条快捷键
+
+---
+
+### 测试结果
+
+- `npm run build` ✓ 零编译错误
+- `npm run test -- --run` ✓ 86/86 通过
+
+## 2026-05-15 | v2.0.4 — 快捷键抽屉 UI 重设计
+
+### 需求背景
+
+v2.0.3 的快捷键提示方案（hover tooltip）位置居中遮挡视线，且 UI 质感不足。经过多轮讨论和迭代，最终采用右侧滑入抽屉方案，对标语雀快捷键面板的设计标准。
+
+---
+
+### 变更文件清单
+
+| 文件 | 变更类型 | 说明 |
+|------|----------|------|
+| `src/App.vue` | 修改 | 触发图标换为键盘 SVG；`?` 移至复制按钮右侧；抽屉内容改为分组布局（描述在左、kbd 在右）；点击预览区内容关闭抽屉 |
+| `src/styles/main.css` | 修改 | 全面重写抽屉样式：宽度 260px、背景用 `--color-bg`、分组标题 13px 正文色、行间距 10px、kbd 精致化（box-shadow 替代 border-bottom、浅色主题白色背景） |
+
+---
+
+### 关键设计决策
+
+- **位置**：抽屉附着在 `.panel-preview`（`position: relative`），`top: 36px` 从 panel-header 下方开始，不遮挡标题栏
+- **触发图标**：键盘 SVG 比 `?` 语义更直接，一眼识别
+- **图标位置**：复制按钮右侧，作为辅助操作，不抢主操作视觉权重
+- **kbd 样式**：暗色主题用极淡 `box-shadow: 0 1px 0 rgba(255,255,255,0.04)` 保留轻微立体感；浅色主题白色背景 + `rgba(0,0,0,0.08)` 阴影
+- **字体层级**：分组标题（13px 正文色粗体）> 快捷键名称（12px 正文色）> kbd（10px muted 色）
+
+---
+
+### 测试结果
+
+- `npm run build` ✓ 零编译错误
+- `npm run test -- --run` ✓ 86/86 通过

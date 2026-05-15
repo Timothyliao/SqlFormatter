@@ -32,6 +32,7 @@
 
     <!-- Code area -->
     <pre
+      ref="previewWrapperRef"
       class="preview-code"
       :class="{ 'is-placeholder': isPlaceholder }"
     ><code v-html="renderedHtml" /></pre>
@@ -63,6 +64,7 @@ import type { StatementBlock } from '../utils/previewParser';
 const formatterStore = useFormatterStore();
 
 const collapsed = ref<boolean[]>([]);
+const previewWrapperRef = ref<HTMLElement | null>(null);
 
 // Re-parse blocks whenever outputHtml changes; reset collapsed state
 const blocks = computed<StatementBlock[]>(() => {
@@ -125,5 +127,15 @@ function getPlainText(): string {
   return getPlainTextFromBlocks(blocks.value);
 }
 
-defineExpose({ foldAll, unfoldAll, getPlainText });
+function scrollToTop(): void {
+  const el = previewWrapperRef.value?.closest('.panel-body') as HTMLElement | null;
+  if (el) el.scrollTop = 0;
+}
+
+function scrollToBottom(): void {
+  const el = previewWrapperRef.value?.closest('.panel-body') as HTMLElement | null;
+  if (el) el.scrollTop = el.scrollHeight;
+}
+
+defineExpose({ foldAll, unfoldAll, getPlainText, scrollToTop, scrollToBottom });
 </script>

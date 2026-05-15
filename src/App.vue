@@ -41,21 +41,74 @@
       <ResizableDivider />
 
       <!-- Right: Preview Panel -->
-      <section class="panel panel-preview" aria-label="格式化预览" style="flex: 1">
+      <section class="panel panel-preview" aria-label="格式化预览" style="flex: 1; position: relative;">
         <div class="panel-header">
           <span class="panel-label">格式化结果</span>
-          <span class="panel-shortcuts" aria-label="快捷键说明">
-            <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>[</kbd> 折叠全部
-            &nbsp;·&nbsp;
-            <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>]</kbd> 展开全部
-          </span>
-          <div class="copy-button-container">
-            <CopyButton :get-plain-text="getPreviewPlainText" />
+          <div class="panel-header-actions">
+            <div class="copy-button-container">
+              <CopyButton :get-plain-text="getPreviewPlainText" />
+            </div>
+            <button
+              class="shortcuts-trigger"
+              :class="{ 'is-active': shortcutsOpen }"
+              aria-label="查看快捷键"
+              @click.stop="shortcutsOpen = !shortcutsOpen"
+            >
+              <!-- keyboard icon -->
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <rect x="2" y="6" width="20" height="13" rx="2" stroke="currentColor" stroke-width="1.6"/>
+                <path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h.01M18 14h.01M10 14h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+              </svg>
+            </button>
           </div>
         </div>
-        <div class="panel-body">
+        <div class="panel-body" @click="shortcutsOpen = false">
           <PreviewPanel ref="previewPanelRef" />
         </div>
+
+        <!-- Shortcuts drawer -->
+        <Transition name="shortcuts-drawer">
+          <div
+            v-if="shortcutsOpen"
+            class="shortcuts-drawer"
+            role="dialog"
+            aria-label="快捷键列表"
+            @click.stop
+          >
+            <div class="shortcuts-drawer-header">
+              <span class="shortcuts-drawer-title">快捷键</span>
+              <button
+                class="shortcuts-drawer-close"
+                aria-label="关闭"
+                @click="shortcutsOpen = false"
+              >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                  <path d="M1 1l10 10M11 1L1 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+              </button>
+            </div>
+            <div class="shortcuts-drawer-body">
+              <div class="shortcuts-drawer-section-title">折叠</div>
+              <div class="shortcuts-drawer-row">
+                <span class="shortcuts-drawer-desc">折叠全部</span>
+                <span class="shortcuts-drawer-keys"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>[</kbd></span>
+              </div>
+              <div class="shortcuts-drawer-row">
+                <span class="shortcuts-drawer-desc">展开全部</span>
+                <span class="shortcuts-drawer-keys"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>]</kbd></span>
+              </div>
+              <div class="shortcuts-drawer-section-title">滚动</div>
+              <div class="shortcuts-drawer-row">
+                <span class="shortcuts-drawer-desc">滚动到首行</span>
+                <span class="shortcuts-drawer-keys"><kbd>Ctrl</kbd><kbd>Home</kbd></span>
+              </div>
+              <div class="shortcuts-drawer-row">
+                <span class="shortcuts-drawer-desc">滚动到末尾</span>
+                <span class="shortcuts-drawer-keys"><kbd>Ctrl</kbd><kbd>End</kbd></span>
+              </div>
+            </div>
+          </div>
+        </Transition>
       </section>
     </main>
   </div>
@@ -88,6 +141,7 @@ const formatterStore = useFormatterStore();
 
 const previewPanelRef = ref<InstanceType<typeof PreviewPanel>>();
 const historyPanelRef = ref<InstanceType<typeof HistoryPanel>>();
+const shortcutsOpen = ref(false);
 
 function getPreviewPlainText(): string {
   return previewPanelRef.value?.getPlainText() ?? '';
@@ -143,6 +197,14 @@ useEventListener(document, 'keydown', (e: KeyboardEvent) => {
   if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === ']' || e.key === '}')) {
     e.preventDefault();
     previewPanelRef.value?.unfoldAll();
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Home') {
+    e.preventDefault();
+    previewPanelRef.value?.scrollToTop();
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'End') {
+    e.preventDefault();
+    previewPanelRef.value?.scrollToBottom();
   }
 });
 </script>
