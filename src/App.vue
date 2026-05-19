@@ -90,28 +90,15 @@
               </button>
             </div>
             <div class="shortcuts-drawer-body">
-              <div class="shortcuts-drawer-section-title">复制</div>
-              <div class="shortcuts-drawer-row">
-                <span class="shortcuts-drawer-desc">复制格式化结果</span>
-                <span class="shortcuts-drawer-keys"><kbd>Ctrl</kbd><kbd>C</kbd></span>
-              </div>
-              <div class="shortcuts-drawer-section-title">折叠</div>
-              <div class="shortcuts-drawer-row">
-                <span class="shortcuts-drawer-desc">折叠全部</span>
-                <span class="shortcuts-drawer-keys"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>[</kbd></span>
-              </div>
-              <div class="shortcuts-drawer-row">
-                <span class="shortcuts-drawer-desc">展开全部</span>
-                <span class="shortcuts-drawer-keys"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>]</kbd></span>
-              </div>
-              <div class="shortcuts-drawer-section-title">滚动</div>
-              <div class="shortcuts-drawer-row">
-                <span class="shortcuts-drawer-desc">滚动到首行</span>
-                <span class="shortcuts-drawer-keys"><kbd>Ctrl</kbd><kbd>Home</kbd></span>
-              </div>
-              <div class="shortcuts-drawer-row">
-                <span class="shortcuts-drawer-desc">滚动到末尾</span>
-                <span class="shortcuts-drawer-keys"><kbd>Ctrl</kbd><kbd>End</kbd></span>
+              <div
+                v-for="shortcut in shortcuts"
+                :key="shortcut.desc"
+                class="shortcuts-drawer-row"
+              >
+                <span class="shortcuts-drawer-desc">{{ shortcut.desc }}</span>
+                <span class="shortcuts-drawer-keys">
+                  <kbd v-for="key in shortcut.keys" :key="key">{{ key }}</kbd>
+                </span>
               </div>
             </div>
           </div>
@@ -131,6 +118,7 @@ import { useEventListener, watchDebounced } from '@vueuse/core';
 import { useUiStore } from './stores/uiStore';
 import { useHistoryStore } from './stores/historyStore';
 import { useFormatterStore } from './stores/formatterStore';
+import { SHORTCUTS } from './config/shortcuts';
 import ConfigPanel from './components/ConfigPanel.vue';
 import ThemeToggle from './components/ThemeToggle.vue';
 import HistoryPanel from './components/HistoryPanel.vue';
@@ -142,6 +130,12 @@ import SaveButton from './components/SaveButton.vue';
 import EvolutionWidget from './components/fun/EvolutionWidget.vue';
 import EggBook from './components/fun/EggBook.vue';
 
+// Detect macOS for platform-aware shortcut display
+const isMac = navigator.platform.toUpperCase().includes('MAC') || navigator.userAgent.includes('Mac');
+
+// Resolve shortcut key labels for the current platform
+const shortcuts = SHORTCUTS.map((s) => ({ desc: s.desc, keys: isMac ? s.mac : s.win }));
+
 const uiStore = useUiStore();
 const historyStore = useHistoryStore();
 const formatterStore = useFormatterStore();
@@ -151,9 +145,11 @@ const historyPanelRef = ref<InstanceType<typeof HistoryPanel>>();
 const copyButtonRef = ref<InstanceType<typeof CopyButton>>();
 const shortcutsOpen = ref(false);
 
-const inputPanelLabel = computed(() =>
-  formatterStore.mode === 'json' ? '粘贴内容' : '输入 SQL',
-);
+const inputPanelLabel = computed(() => {
+  if (formatterStore.mode === 'json') return '粘贴内容';
+  if (formatterStore.mode === 'stacktrace') return '粘贴 StackTrace';
+  return '输入 SQL';
+});
 
 function getPreviewPlainText(): string {
   return previewPanelRef.value?.getPlainText() ?? '';
@@ -201,7 +197,7 @@ useEventListener(document, 'keydown', (e: KeyboardEvent) => {
     historyStore.saveActiveDoc(formatterStore.sql);
     return;
   }
-  // Ctrl+C: copy formatted output when no text is selected and focus is not inside the editor
+  // Ctrl/Cmd+C: copy formatted output when no text is selected and focus is not inside the editor
   if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
     const selection = window.getSelection()?.toString() ?? '';
     const activeEl = document.activeElement;
@@ -220,12 +216,18 @@ useEventListener(document, 'keydown', (e: KeyboardEvent) => {
   if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === ']' || e.key === '}')) {
     e.preventDefault();
     previewPanelRef.value?.unfoldAll();
+    return;
   }
-  if ((e.ctrlKey || e.metaKey) && e.key === 'Home') {
+  // Ctrl+Home / Cmd+Home: scroll to top
+  // macOS alias: Cmd+ArrowUp (Home key is uncommon on Mac keyboards)
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'Home' || (e.metaKey && e.key === 'ArrowUp'))) {
     e.preventDefault();
     previewPanelRef.value?.scrollToTop();
+    return;
   }
-  if ((e.ctrlKey || e.metaKey) && e.key === 'End') {
+  // Ctrl+End / Cmd+End: scroll to bottom
+  // macOS alias: Cmd+ArrowDown
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'End' || (e.metaKey && e.key === 'ArrowDown'))) {
     e.preventDefault();
     previewPanelRef.value?.scrollToBottom();
   }

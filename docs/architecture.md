@@ -1,6 +1,6 @@
 # SQL Formatter 技术架构文档
 
-> 版本：v2.0.0 | 最后更新：2026-05-15
+> 版本：v2.1.0 | 最后更新：2026-05-19
 
 ---
 
@@ -11,6 +11,7 @@ SQL Formatter 是一款**纯前端** SQL 格式化工具，基于 Vue 3 + Pinia 
 ### 核心特性
 
 - 实时格式化预览（250ms 防抖）
+- 多格式支持：SQL（PostgreSQL / MySQL / SQLite）、JSON、StackTrace
 - 多文档 Tab 管理（最多 5 个，localStorage 持久化）
 - 代码折叠（按 SQL 语句块折叠/展开）
 - 深色/浅色双主题热切换
@@ -104,9 +105,17 @@ src/
 ├── composables/
 │   └── useEvoWidget.ts        # 拖拽吸附逻辑
 ├── formatter/
-│   └── Formatter.ts           # SQL 格式化 + 后处理
+│   ├── Formatter.ts           # SQL 格式化 + 后处理
+│   ├── JsonFormatter.ts       # JSON 格式化 + 嵌套展开
+│   └── stacktrace/
+│       ├── IStackTraceStrategy.ts  # 策略接口
+│       ├── CSharpStrategy.ts       # C# 解析（英文 + 中文本地化）
+│       ├── JavaStrategy.ts         # Java 解析
+│       ├── PythonStrategy.ts       # Python 解析
+│       └── StackTraceFormatter.ts  # 入口，策略调度
 ├── highlighter/
-│   └── Highlighter.ts         # highlight.js 封装
+│   ├── Highlighter.ts         # highlight.js 封装（SQL/JSON）
+│   └── StackTraceHighlighter.ts # StackTrace 高亮渲染
 ├── utils/
 │   ├── previewParser.ts       # 纯函数：块解析/行号/折叠
 │   └── sqlCap.ts              # SQL 字节截断
@@ -135,7 +144,7 @@ src/
 │                        格式化数据流 (Formatting Pipeline)                  │
 └──────────────────────────────────────────────────────────────────────────┘
 
-  用户键入 SQL
+  用户键入 / 粘贴内容
        │
        ▼
   ┌─────────────────┐    EditorView.updateListener
@@ -144,37 +153,29 @@ src/
   └─────────────────┘                              ▼
                                           formatterStore.sql (ref)
                                                    │
-                                    watchDebounced([sql, config], 250ms)
+                                    watchDebounced([sql, config, mode], 250ms)
                                                    │
-                                                   ▼
-                                    ┌──────────────────────────┐
-                                    │    Formatter.format()     │
-                                    │  ┌────────────────────┐  │
-                                    │  │ 1. sql-formatter    │  │
-                                    │  │ 2. postProcess语句  │  │
-                                    │  │ 3. postProcess逗号  │  │
-                                    │  │ 4. postProcess IN   │  │
-                                    │  └────────────────────┘  │
-                                    └────────────┬─────────────┘
-                                                 │
-                                                 ▼ FormatResult { text, error? }
-                                    ┌──────────────────────────┐
-                                    │  Highlighter.highlight()  │
-                                    │  (highlight.js → HTML)    │
-                                    └────────────┬─────────────┘
-                                                 │
-                                                 ▼
-                                    formatterStore.outputHtml (ref)
-                                                 │
-                                                 ▼
-                                    ┌──────────────────────────┐
-                                    │   PreviewPanel.vue        │
-                                    │  ┌────────────────────┐  │
-                                    │  │ parseBlocks()       │  │
-                                    │  │ buildGutterRows()   │  │
-                                    │  │ buildCodeHtml()     │  │
-                                    │  └────────────────────┘  │
-                                    └──────────────────────────┘
+                                    ┌──────────────┴──────────────┐
+                                    │   mode 分支                  │
+                              ┌─────┴──────┬──────────────────────┐
+                              │ 'sql'      │ 'json'    │ 'stacktrace'
+                              ▼            ▼            ▼
+                         Formatter   JsonFormatter  StackTraceFormatter
+                         .format()   .format()      .format()
+                              │            │            │
+                              ▼            ▼            ▼
+                         Highlighter  Highlighter  StackTraceHighlighter
+                         .highlight() .highlight() .highlight()
+                              └────────────┴────────────┘
+                                           │
+                                           ▼
+                                formatterStore.outputHtml (ref)
+                                           │
+                                           ▼
+                                ┌──────────────────────────┐
+                                │   PreviewPanel.vue        │
+                                │  parseBlocks / v-html     │
+                                └──────────────────────────┘
 ```
 
 ### 5.2 自动保存流
@@ -353,7 +354,100 @@ App.vue
 
 ---
 
-## 9. 预览渲染引擎
+## 9. StackTrace 格式化引擎
+
+StackTrace 模式将日志中压缩的异常堆栈展开为逐行结构并进行语法高亮，支持 C#（英文 + 中文本地化）、Java、Python。
+
+### 9.1 策略模式架构
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              StackTrace Formatter 架构                       │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  StackTraceFormatter.format(input)                          │
+│       │                                                     │
+│       ▼ 按优先级遍历策略                                     │
+│  ┌─────────────────────────────────────────────────┐        │
+│  │  1. PythonStrategy.detect()  ← File "..." 最独特 │        │
+│  │  2. JavaStrategy.detect()    ← Caused by: 较独特 │        │
+│  │  3. CSharpStrategy.detect()  ← at/在 最宽泛(兜底)│        │
+│  └──────────────────┬──────────────────────────────┘        │
+│                     │ 首个 detect()=true 的策略              │
+│                     ▼                                       │
+│  strategy.parse(input) → StackFrame[]                       │
+│       │                                                     │
+│       ▼                                                     │
+│  StackTraceResult { language, frames, error? }              │
+│       │                                                     │
+│       ▼                                                     │
+│  StackTraceHighlighter.highlight() → HTML string            │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 9.2 策略接口
+
+```typescript
+interface IStackTraceStrategy {
+  readonly language: StackTraceLanguage   // 'csharp' | 'java' | 'python' | 'unknown'
+  detect(input: string): boolean          // 自动检测是否匹配，不抛异常
+  parse(input: string): StackFrame[]      // 解析成帧列表，不抛异常
+}
+```
+
+**扩展方式**：新增语言只需新建一个实现 `IStackTraceStrategy` 的文件，在 `StackTraceFormatter` 构造函数中插入即可，不修改任何现有策略。
+
+### 9.3 各语言策略特征
+
+| 策略 | 帧前缀 | 文件位置格式 | 内部异常 | 中文支持 |
+|------|--------|------------|---------|---------|
+| `CSharpStrategy` | `at ` / `在 ` | `in file:line N` / `位置 file:行号 N` | `---> ` | ✓ |
+| `JavaStrategy` | `at ` | `(File.java:N)` | `Caused by:` | — |
+| `PythonStrategy` | `File "path"` | `, line N, in func` | `During handling...` | — |
+
+**压缩日志展开**：日志系统常将多帧压缩为一行（帧间用 2+ 空格分隔），各策略在 `parse()` 前先用正则展开，再逐行解析。
+
+### 9.4 StackFrame 数据结构
+
+```typescript
+interface StackFrame {
+  type: 'exception' | 'frame' | 'inner' | 'unknown'
+  raw: string           // 原始文本，降级展示用
+
+  // exception 行
+  exceptionType?: string   // 异常类名
+  message?: string         // 异常消息
+
+  // frame 行
+  namespace?: string       // 命名空间前缀
+  method?: string          // 最后一段方法名
+  params?: string          // 参数列表（含括号）
+  filePath?: string        // 源文件路径
+  lineNumber?: string      // 行号
+}
+```
+
+**降级安全**：`raw` 字段保存原始文本，任何无法识别的行以 `type: 'unknown'` 输出，不丢失内容。
+
+### 9.5 高亮 Token 映射
+
+| CSS 类 | 含义 | 暗色 | 亮色 |
+|--------|------|------|------|
+| `.st-exception-type` | 异常类名 | `#f38ba8` | `#d20f39` |
+| `.st-message` | 异常消息 | `#cdd6f4` | `#4c4f69` |
+| `.st-namespace` | 命名空间前缀（降噪） | `#6c7086` | `#8c8fa1` |
+| `.st-method` | 方法名（高亮） | `#89b4fa` | `#1e66f5` |
+| `.st-params` | 参数列表 | `#a6adc8` | `#5c5f77` |
+| `.st-line-kw` | `in` / `位置` / `:` | `#6c7086` | `#8c8fa1` |
+| `.st-file` | 源文件路径 | `#89dceb` | `#179299` |
+| `.st-line-num` | 行号 | `#f9e2af` | `#df8e1d` |
+| `.st-inner` | inner/chained exception | `#cba6f7` | `#8839ef` |
+| `.st-unknown` | 未识别行 | `#a6adc8` | `#5c5f77` |
+
+---
+
+## 10. 预览渲染引擎
 
 `previewParser.ts` 提供纯函数，将高亮 HTML 解析为可折叠的语句块：
 
@@ -392,7 +486,7 @@ interface StatementBlock {
 
 ---
 
-## 10. 主题系统
+## 11. 主题系统
 
 双主题通过 **CSS 变量 + data-theme 属性** 实现，无需重新渲染组件：
 
@@ -441,7 +535,7 @@ interface StatementBlock {
 
 ---
 
-## 11. 多文档管理
+## 12. 多文档管理
 
 
 ```
@@ -499,7 +593,7 @@ interface StatementBlock {
 
 ---
 
-## 12. CodeMirror 6 集成
+## 13. CodeMirror 6 集成
 
 `InputPanel.vue` 封装了 CodeMirror 6 编辑器：
 
@@ -540,7 +634,7 @@ interface StatementBlock {
 
 ---
 
-## 13. 趣味系统（Fun Mode）
+## 14. 趣味系统（Fun Mode）
 
 项目内置了一套游戏化系统，为枯燥的 SQL 格式化增添乐趣：
 
@@ -641,7 +735,7 @@ EvolutionWidget 内部维护一个 FIFO 消息队列，确保多个消息按序�
 
 ---
 
-## 14. 持久化策略
+## 15. 持久化策略
 
 所有持久化均使用 `localStorage`，无后端依赖：
 
@@ -658,7 +752,7 @@ EvolutionWidget 内部维护一个 FIFO 消息队列，确保多个消息按序�
 
 ---
 
-## 15. 响应式布局
+## 16. 响应式布局
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -698,7 +792,7 @@ EvolutionWidget 内部维护一个 FIFO 消息队列，确保多个消息按序�
 
 ---
 
-## 16. 构建与部署
+## 17. 构建与部署
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -725,7 +819,7 @@ EvolutionWidget 内部维护一个 FIFO 消息队列，确保多个消息按序�
 
 ---
 
-## 17. 测试架构
+## 18. 测试架构
 
 ```
 tests/
@@ -734,14 +828,15 @@ tests/
 ├── previewParser.test.ts   # 纯函数测试（parseBlocks/buildGutterRows/buildCodeHtml）
 ├── formatterStore.test.ts  # formatterStore pipeline 测试
 ├── historyStore.test.ts    # historyStore 文档管理测试
-└── integration.test.ts     # 端到端集成测试
+├── integration.test.ts     # 端到端集成测试
+└── jsonFormatter.test.ts   # JsonFormatter 单元测试
 ```
 
 测试环境：Vitest + jsdom + @vue/test-utils
 
 ---
 
-## 18. 关键设计决策总结
+## 19. 关键设计决策总结
 
 | 决策 | 原因 |
 |------|------|
@@ -756,10 +851,13 @@ tests/
 | localStorage 持久化 | 零服务器依赖，数据不离开浏览器 |
 | 消息队列（Fun System） | 多个彩蛋/进化消息按序播放，不互相覆盖 |
 | 拖拽吸附四边（EvolutionWidget） | 不遮挡编辑区域，位置持久化 |
+| StackTrace 策略模式 | 新增语言只需新建文件，不修改现有策略，符合开闭原则 |
+| StackTrace 检测优先级 Python→Java→C# | Python 特征最独特，C# 最宽泛作兜底，减少误判 |
+| StackFrame.raw 降级字段 | 任何无法识别的行保留原文输出，不丢失内容 |
 
 ---
 
-## 19. 性能考量
+## 20. 性能考量
 
 - **防抖格式化**：250ms debounce，避免每次按键都触发格式化
 - **防抖保存**：1000ms debounce，减少 localStorage 写入频率

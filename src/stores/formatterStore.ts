@@ -3,13 +3,17 @@ import { defineStore } from 'pinia';
 import { watchDebounced } from '@vueuse/core';
 import { Formatter } from '../formatter/Formatter';
 import { JsonFormatter } from '../formatter/JsonFormatter';
+import { StackTraceFormatter } from '../formatter/stacktrace/StackTraceFormatter';
 import { Highlighter } from '../highlighter/Highlighter';
+import { StackTraceHighlighter } from '../highlighter/StackTraceHighlighter';
 import { DEFAULT_CONFIG } from '../types/index';
 import type { FormatterConfig, FormatterMode, FormatTarget } from '../types/index';
 
 const formatter = new Formatter();
 const jsonFormatter = new JsonFormatter();
+const stackTraceFormatter = new StackTraceFormatter();
 const highlighter = new Highlighter();
+const stackTraceHighlighter = new StackTraceHighlighter();
 
 export const useFormatterStore = defineStore('formatter', () => {
   const sql = ref('');
@@ -30,6 +34,8 @@ export const useFormatterStore = defineStore('formatter', () => {
   function setFormatTarget(target: FormatTarget): void {
     if (target === 'json') {
       mode.value = 'json';
+    } else if (target === 'stacktrace') {
+      mode.value = 'stacktrace';
     } else {
       mode.value = 'sql';
       const dialect = target.replace('sql-', '') as FormatterConfig['dialect'];
@@ -47,6 +53,10 @@ export const useFormatterStore = defineStore('formatter', () => {
     if (mode.value === 'json') {
       const result = jsonFormatter.format(sql.value, config.value.indentWidth);
       outputHtml.value = result.text ? highlighter.highlight(result.text, 'json') : '';
+      errorMessage.value = result.error;
+    } else if (mode.value === 'stacktrace') {
+      const result = stackTraceFormatter.format(sql.value);
+      outputHtml.value = stackTraceHighlighter.highlight(result);
       errorMessage.value = result.error;
     } else {
       const result = formatter.format(sql.value, config.value);

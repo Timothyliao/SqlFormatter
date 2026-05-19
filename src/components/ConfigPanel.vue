@@ -9,13 +9,16 @@
         :value="formatterStore.formatTarget"
         @change="onFormatTargetChange"
       >
-        <optgroup label="SQL">
-          <option value="sql-postgresql">SQL · PostgreSQL</option>
-          <option value="sql-mysql">SQL · MySQL</option>
-          <option value="sql-sqlite">SQL · SQLite</option>
-        </optgroup>
-        <optgroup label="其他">
-          <option value="json">JSON</option>
+        <optgroup
+          v-for="group in FORMAT_TARGET_GROUPS"
+          :key="group.label"
+          :label="group.label"
+        >
+          <option
+            v-for="opt in group.options"
+            :key="opt.value"
+            :value="opt.value"
+          >{{ opt.label }}</option>
         </optgroup>
       </select>
     </div>
@@ -147,6 +150,7 @@ import { useFormatterStore } from '../stores/formatterStore';
 import { useUiStore } from '../stores/uiStore';
 import { DEFAULT_CONFIG, DEFAULT_FONT_SIZE } from '../types/index';
 import type { FormatterConfig, FormatTarget } from '../types/index';
+import { FORMAT_TARGET_GROUPS, VALID_FORMAT_TARGETS } from '../config/formatTargets';
 
 const STORAGE_KEY = 'sql-formatter-config';
 
@@ -172,8 +176,7 @@ function loadFromStorage(): void {
     const data = JSON.parse(raw) as { config?: Partial<FormatterConfig>; fontSize?: number; formatTarget?: FormatTarget };
     if (data.config) {
       const c = data.config;
-      if (c.dialect && ['postgresql', 'mysql', 'sqlite'].includes(c.dialect)) {
-        formatterStore.config = { ...formatterStore.config, dialect: c.dialect };
+      if (c.dialect && ['postgresql', 'mysql', 'sqlite'].includes(c.dialect)) {        formatterStore.config = { ...formatterStore.config, dialect: c.dialect };
         pending.dialect = c.dialect;
       }
       if (c.indentWidth && [2, 4].includes(c.indentWidth)) {
@@ -193,7 +196,7 @@ function loadFromStorage(): void {
       }
       formatterStore.config = { ...pending };
     }
-    if (data.formatTarget) {
+    if (data.formatTarget && VALID_FORMAT_TARGETS.has(data.formatTarget)) {
       formatterStore.setFormatTarget(data.formatTarget);
     }
     if (typeof data.fontSize === 'number' && data.fontSize >= 10 && data.fontSize <= 24) {

@@ -6,12 +6,12 @@ export type SqlDialect = 'postgresql' | 'mysql' | 'sqlite';
 /**
  * Formatter mode — determines which formatter strategy is used.
  */
-export type FormatterMode = 'sql' | 'json';
+export type FormatterMode = 'sql' | 'json' | 'stacktrace';
 
 /**
  * Unified format target combining mode + dialect into a single selector value.
  */
-export type FormatTarget = 'sql-postgresql' | 'sql-mysql' | 'sql-sqlite' | 'json';
+export type FormatTarget = 'sql-postgresql' | 'sql-mysql' | 'sql-sqlite' | 'json' | 'stacktrace';
 
 /**
  * Application theme.
@@ -70,6 +70,55 @@ export interface FormatResult {
   /** Present and non-empty when formatting failed. */
   error?: string;
 }
+
+// ── StackTrace types ──────────────────────────────────────────────────────────
+
+/**
+ * Supported stacktrace source languages.
+ */
+export type StackTraceLanguage = 'csharp' | 'java' | 'python' | 'unknown';
+
+/**
+ * A single parsed frame or header line from a stacktrace.
+ */
+export interface StackFrame {
+  /** Semantic type of this line */
+  type: 'exception' | 'frame' | 'inner' | 'unknown';
+  /** Original raw text — used as fallback for rendering */
+  raw: string;
+
+  // ── exception line fields ──
+  /** Exception class name, e.g. "System.NullReferenceException" */
+  exceptionType?: string;
+  /** Human-readable message after the colon */
+  message?: string;
+
+  // ── frame line fields ──
+  /** Namespace prefix before the final method segment */
+  namespace?: string;
+  /** Final method name (last segment before the parameter list) */
+  method?: string;
+  /** Raw parameter list including parentheses, e.g. "(Int32 id)" */
+  params?: string;
+  /** Source file path */
+  filePath?: string;
+  /** Line number as string */
+  lineNumber?: string;
+}
+
+/**
+ * Result returned by StackTraceFormatter.format().
+ */
+export interface StackTraceResult {
+  /** Detected source language */
+  language: StackTraceLanguage;
+  /** Parsed frames in order */
+  frames: StackFrame[];
+  /** Present when the input could not be parsed at all */
+  error?: string;
+}
+
+// ── Constants ─────────────────────────────────────────────────────────────────
 
 /**
  * Default configuration values.

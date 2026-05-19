@@ -929,3 +929,103 @@ Test Files  7 passed (7)
 ```
 
 构建产物：零编译错误，零 TypeScript 错误。
+
+---
+
+## 2026-05-19 | v2.1.0 — StackTrace Formatter
+
+### 需求背景
+
+新增 StackTrace 格式化模式，支持将日志中压缩的异常堆栈信息展开为逐行结构并进行语法高亮。支持 C#（英文 + 中文本地化）、Java、Python 三种语言，采用策略模式实现，便于后续扩展。
+
+### 变更文件清单
+
+| 文件 | 变更类型 | 说明 |
+|------|----------|------|
+| `src/types/index.ts` | 修改 | 扩展 `FormatterMode`、`FormatTarget`，新增 `StackTraceLanguage`、`StackFrame`、`StackTraceResult` 类型 |
+| `src/formatter/stacktrace/IStackTraceStrategy.ts` | 新增 | 策略接口定义 |
+| `src/formatter/stacktrace/CSharpStrategy.ts` | 新增 | C# 解析策略，支持英文 `at`/`in`/`:line N` 和中文 `在`/`位置`/`:行号 N` |
+| `src/formatter/stacktrace/JavaStrategy.ts` | 新增 | Java 解析策略，支持 `Caused by:` 和 `(File.java:N)` |
+| `src/formatter/stacktrace/PythonStrategy.ts` | 新增 | Python 解析策略，支持 `File "path", line N, in func` |
+| `src/formatter/stacktrace/StackTraceFormatter.ts` | 新增 | 入口，按优先级（Python → Java → C#）调度策略 |
+| `src/highlighter/StackTraceHighlighter.ts` | 新增 | 将 `StackTraceResult` 渲染为带 `.st-*` CSS 类的 HTML |
+| `src/stores/formatterStore.ts` | 修改 | 新增 import、pipeline 分支、`setFormatTarget` case |
+| `src/components/ConfigPanel.vue` | 修改 | 格式选择器新增 `<option value="stacktrace">` |
+| `src/App.vue` | 修改 | `inputPanelLabel` 新增 stacktrace 分支 |
+| `src/styles/main.css` | 修改 | 新增 `--color-st-*` CSS 变量（双主题）+ `.st-*` 样式类 |
+| `docs/stacktrace-architecture.md` | 新增 | StackTrace 功能架构设计文档 |
+
+### 关键设计决策
+
+1. **策略模式**：每种语言一个独立文件，实现 `IStackTraceStrategy` 接口。新增语言只需新建文件并在 `StackTraceFormatter` 构造函数中插入，不修改任何现有策略。
+
+2. **检测优先级**：Python（`File "..."` 最独特）→ Java（`Caused by:` 较独特）→ C#（兜底，`at`/`在` 最宽泛）。
+
+3. **中文本地化支持**：`CSharpStrategy` 同时识别 `at`/`在`、`in`/`位置`、`:line N`/`:行号 N`，处理 .NET 中文运行时输出。
+
+4. **压缩日志展开**：日志系统常将多帧压缩为一行（帧间用 2+ 空格分隔），策略层在 `parse()` 前先用正则展开，再逐行解析。
+
+5. **降级安全**：`StackFrame.raw` 保存原始文本，任何无法识别的行都以 `type: 'unknown'` 输出，不丢失内容。
+
+6. **Pipeline 对称**：StackTrace 模式与 SQL/JSON 模式走同一条 `runPipeline()` 分支结构，store 层改动极小。
+
+### 测试结果
+
+- `npm run build`：✓ 零编译错误，93 modules transformed
+- `npm run test -- --run`：✓ 109 tests passed (7 test files)
+
+---
+
+## 2026-05-19 | v2.2.1 — 快捷键 macOS 兼容 & 快捷键说明补全
+
+### 需求背景
+
+1. 快捷键抽屉只显示 `Ctrl` 版本，macOS 用户看到的提示不准确
+2. `Ctrl+S` 保存快捷键在抽屉中缺失说明
+3. macOS 上 `Cmd+Home` / `Cmd+End` 不是标准滚动习惯，需补充 `Cmd+↑` / `Cmd+↓` 别名
+
+### 变更文件清单
+
+| 文件 | 变更类型 | 说明 |
+|------|----------|------|
+| `src/App.vue` | 修改 | 新增 `isMac` / `modKey` 平台检测；补充 `Cmd+↑` / `Cmd+↓` 滚动别名；快捷键抽屉动态显示修饰键；补全「保存」分组 |
+| `docs/product.md` | 修改 | 快捷键表格新增 macOS 列，补全 `Ctrl+S` 说明，版本升至 v2.2.1 |
+
+### 关键设计决策
+
+- **平台检测**：使用 `navigator.platform` + `navigator.userAgent` 双重检测，`isMac` 为 `const`（组件生命周期内不变），`modKey` 派生为 `⌘` 或 `Ctrl`
+- **macOS 滚动别名**：`Cmd+↑` / `Cmd+↓` 是 macOS 文本编辑器的标准「跳到文档首/尾」手势，比 `Cmd+Home/End` 更符合 Mac 用户习惯；两者均支持，不互斥
+- **快捷键抽屉**：用 `v-if="isMac"` 分支渲染滚动快捷键，其余用 `{{ modKey }}` 插值统一处理，模板清晰
+- **保存快捷键**：`Ctrl+S` / `Cmd+S` 早已在 `keydown` 处理器中实现，此次仅补充抽屉说明，无逻辑变更
+
+### 测试结果
+
+- `npm run build`：✓ 零编译错误，94 模块，6.34s
+- `npm run test -- --run`：✓ 109 个测试全部通过（7 个测试文件）
+
+---
+
+## 2026-05-19 | 快捷键说明去硬编码重构
+
+### 需求背景
+
+快捷键抽屉模板中每条快捷键都是硬编码的 HTML，分类标题也写死在模板里。新增或修改快捷键需要同时改模板和逻辑，容易遗漏。
+
+### 变更文件清单
+
+| 文件 | 变更类型 | 说明 |
+|------|----------|------|
+| `src/config/shortcuts.ts` | 新增 | 快捷键数据源，每条记录含 `desc`、`win`、`mac` 三个字段 |
+| `src/App.vue` | 修改 | 移除硬编码 kbd 模板和分类标题，改为 `v-for` 遍历；整理 import 顺序；移除未使用的 `modKey` |
+
+### 关键设计决策
+
+- **数据驱动**：`SHORTCUTS` 数组是唯一的快捷键数据源，模板只负责渲染，不含任何快捷键文字
+- **平台解析在组件层**：`App.vue` 在 setup 阶段将 `SHORTCUTS` map 为 `{ desc, keys }` 的平铺数组，模板只需 `v-for` + `v-for`，无需 `v-if` 分支
+- **无分类标题**：按用户要求直接罗列，去掉分组 section-title，UI 更简洁
+- **新增快捷键只改一处**：在 `shortcuts.ts` 加一行，抽屉自动更新
+
+### 测试结果
+
+- `npm run build`：✓ 零编译错误，95 模块，3.86s
+- `npm run test -- --run`：✓ 109 个测试全部通过

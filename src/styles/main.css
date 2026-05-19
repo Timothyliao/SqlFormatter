@@ -35,6 +35,18 @@
   --color-history-item-text: #cdd6f4;
   --color-history-num: #89b4fa;
 
+  /* ── StackTrace highlight colors ── */
+  --color-st-exception: #f38ba8;
+  --color-st-message: #cdd6f4;
+  --color-st-namespace: #6c7086;
+  --color-st-method: #89b4fa;
+  --color-st-params: #a6adc8;
+  --color-st-file: #89dceb;
+  --color-st-line-kw: #6c7086;
+  --color-st-line-num: #f9e2af;
+  --color-st-inner: #cba6f7;
+  --color-st-unknown: #a6adc8;
+
   --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
   --font-ui: system-ui, -apple-system, 'Segoe UI', sans-serif;
 
@@ -67,6 +79,18 @@
   --color-history-item-hover: #ccd0da;
   --color-history-item-text: #4c4f69;
   --color-history-num: #1e66f5;
+
+  /* ── StackTrace highlight colors ── */
+  --color-st-exception: #d20f39;
+  --color-st-message: #4c4f69;
+  --color-st-namespace: #8c8fa1;
+  --color-st-method: #1e66f5;
+  --color-st-params: #5c5f77;
+  --color-st-file: #179299;
+  --color-st-line-kw: #8c8fa1;
+  --color-st-line-num: #df8e1d;
+  --color-st-inner: #8839ef;
+  --color-st-unknown: #5c5f77;
 }
 
 html,
@@ -1893,4 +1917,62 @@ body {
   filter: none !important;
   pointer-events: auto !important;
   transition: opacity 0.4s ease, filter 0.4s ease;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   STACKTRACE — Syntax highlight tokens
+   ══════════════════════════════════════════════════════════════ */
+
+/* Exception class name */
+.st-exception-type {
+  color: var(--color-st-exception);
+  font-weight: 600;
+}
+
+/* Exception message text */
+.st-message {
+  color: var(--color-st-message);
+}
+
+/* Namespace prefix (dimmed) */
+.st-namespace {
+  color: var(--color-st-namespace);
+}
+
+/* Method name (highlighted) */
+.st-method {
+  color: var(--color-st-method);
+  font-weight: 500;
+}
+
+/* Parameter list */
+.st-params {
+  color: var(--color-st-params);
+}
+
+/* "in" / "位置" keyword */
+.st-line-kw {
+  color: var(--color-st-line-kw);
+}
+
+/* Source file path */
+.st-file {
+  color: var(--color-st-file);
+}
+
+/* Line number */
+.st-line-num {
+  color: var(--color-st-line-num);
+  font-weight: 500;
+}
+
+/* Inner / chained exception separator */
+.st-inner {
+  color: var(--color-st-inner);
+  font-style: italic;
+}
+
+/* Unrecognised lines */
+.st-unknown {
+  color: var(--color-st-unknown);
 }
