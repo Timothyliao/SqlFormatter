@@ -715,3 +715,217 @@ v2.0.3 的快捷键提示方案（hover tooltip）位置居中遮挡视线，且
 
 - `npm run build` ✓ 零编译错误
 - `npm run test -- --run` ✓ 86/86 通过
+
+---
+
+## 2026-05-18 | v2.1.0 — 多格式支持（JSON）
+
+### 需求背景
+
+在 SQL 格式化基础上扩展支持 JSON 格式化，采用同页面 mode 切换方案，通过策略模式复用现有 pipeline，不破坏现有架构。
+
+---
+
+### 变更文件清单
+
+| 文件 | 变更类型 | 说明 |
+|------|----------|------|
+| `src/types/index.ts` | 修改 | 新增 `FormatterMode`（`'sql' \| 'json'`）、`FormatTarget`（统一选择器值类型） |
+| `src/formatter/JsonFormatter.ts` | 新增 | JSON 格式化策略，原生 `JSON.parse` + `JSON.stringify`，无外部依赖，parse 失败返回 error |
+| `src/stores/formatterStore.ts` | 修改 | 新增 `mode` ref、`formatTarget` computed、`setFormatTarget()` 方法；pipeline 按 mode 分支执行不同策略 |
+| `src/highlighter/Highlighter.ts` | 修改 | 注册 highlight.js JSON 语言包；`highlight()` 参数类型扩展为 `SqlDialect \| 'json'` |
+| `src/components/ConfigPanel.vue` | 修改 | 语言下拉框替换为统一格式选择器（SQL·PostgreSQL / SQL·MySQL / SQL·SQLite / JSON）；JSON mode 时隐藏 SQL 专属配置项；localStorage 持久化 formatTarget |
+| `src/components/InputPanel.vue` | 修改 | 新增 `langCompartment`，watch `formatterStore.mode` 热替换 CodeMirror 语言扩展（sql ↔ json） |
+| `tests/jsonFormatter.test.ts` | 新增 | JsonFormatter 单元测试（5 个） |
+
+### 新增依赖
+
+| 包 | 版本 | 用途 |
+|----|------|------|
+| `@codemirror/lang-json` | 6.0.2 | CodeMirror JSON 语言支持 |
+| `@lezer/json` | 1.0.3 | `@codemirror/lang-json` 的 parser 依赖 |
+
+---
+
+### 关键设计决策
+
+#### 1. 单一输入，mode 决定策略
+输入内容（`formatterStore.sql`）在 mode 切换时保持不变。切换 mode 后 pipeline 用新策略重新格式化，格式化失败（如 JSON parse error）在右侧显示错误信息——这是用户的主动选择，工具如实反馈。
+
+#### 2. 统一格式选择器
+将原来的"方言下拉框"升级为"格式化目标选择器"，选项为 `SQL · PostgreSQL / SQL · MySQL / SQL · SQLite / JSON`。一个选择器同时承载 mode + dialect，避免 JSON mode 下方言下拉框变成无意义残留。
+
+#### 3. 策略模式扩展性
+后续新增 YAML 只需：
+1. 新增 `YamlFormatter.ts`
+2. `FormatterMode` 加 `'yaml'`
+3. `FormatTarget` 加 `'yaml'`
+4. formatterStore pipeline 加一个分支
+5. ConfigPanel 选择器加一个 option
+
+不需要改动任何现有逻辑。
+
+#### 4. JSON 格式化零依赖
+`JsonFormatter` 使用原生 `JSON.parse` + `JSON.stringify`，不引入任何第三方库，bundle size 零增长（仅 highlight.js JSON 语言包约 0.38KB gzip）。
+
+---
+
+### 测试结果
+
+```
+Test Files  7 passed (7)
+     Tests  91 passed (91)
+  Duration  ~5.9s
+```
+
+---
+
+## 2026-05-18 | v2.1.1 — 品牌重命名 + JSON 层级折叠
+
+### 需求背景
+
+1. 产品更名为 **Lumino**，配套 slogan：*Paste it. Illuminate it.*
+2. JSON mode 新增按层级折叠/展开功能（方向 B：真正的 JSON tree 折叠）
+
+---
+
+### 变更文件清单
+
+| 文件 | 变更类型 | 说明 |
+|------|----------|------|
+| `index.html` | 修改 | `<title>` 改为 Lumino |
+| `src/App.vue` | 修改 | `<h1>` 改为 Lumino，新增 `.app-slogan` 副标题 |
+| `src/styles/main.css` | 修改 | 新增 `.app-brand`、`.app-slogan` 样式 |
+| `src/utils/previewParser.ts` | 修改 | 新增 `JsonFoldNode` 接口、`MAX_JSON_FOLD_DEPTH` 常量、`parseJsonNodes()`、`buildJsonGutterRows()`、`buildJsonCodeHtml()` 纯函数 |
+| `src/components/PreviewPanel.vue` | 修改 | 按 `isSqlMode` 分支渲染 gutter 和代码区；JSON mode 使用 `jsonCollapsed` Map 管理折叠状态 |
+| `tests/previewParser.test.ts` | 修改 | 新增 7 个 `parseJsonNodes` / `buildJsonGutterRows` 单元测试 |
+
+---
+
+### 关键设计决策
+
+#### 1. JSON 折叠策略：行扫描 + 栈
+不依赖 JSON.parse（格式化后的 HTML 已经是字符串，重新 parse 有额外开销），而是对纯文本逐字符扫描，用栈追踪 `{`/`[` 的开启行。遇到对应的 `}`/`]` 时，若跨行且深度 ≤ `MAX_JSON_FOLD_DEPTH`，则记录为 `JsonFoldNode`。
+
+#### 2. 折叠深度限制（MAX_JSON_FOLD_DEPTH = 1）
+只显示深度 0（根节点）和深度 1（第二层）的折叠图标，避免每行都出现图标造成视觉噪音。后续可通过修改常量调整。
+
+#### 3. collapsed 状态用 Map 而非数组
+SQL mode 用 `boolean[]`（按 blockIdx 索引），JSON mode 用 `Map<number, boolean>`（按 startLine 索引）。两套状态互不干扰，切换 mode 时各自重置。
+
+#### 4. 折叠摘要
+折叠时在 startLine 末尾追加 `… }` 或 `… ]`（根据 endLine 内容判断），简洁直观，与 VS Code JSON 折叠行为一致。
+
+#### 5. foldAll/unfoldAll 按 mode 分支
+`PreviewPanel.vue` 的 `foldAll()`/`unfoldAll()` 根据 `isSqlMode` 分别操作 `collapsed` 数组或 `jsonCollapsed` Map，`App.vue` 的快捷键无需感知 mode。
+
+---
+
+### 测试结果
+
+```
+Test Files  7 passed (7)
+     Tests  98 passed (98)
+  Duration  ~4.1s
+```
+
+---
+
+## 2026-05-18 | v2.1.2 — JSON 智能解析（递归展开嵌套字符串化 JSON）
+
+### 需求背景
+
+实际业务场景中，接口日志、调试数据常见以下形态：
+- 整体是一个带引号的字符串：`"{\"key\":\"value\"}"`
+- 字段值本身又是 JSON 字符串（如 `biz`、`args` 字段）
+- 多层嵌套，转义层数不定
+
+用户期望粘贴后直接得到完整展开的结构化 JSON，无需手动处理转义。
+
+---
+
+### 变更文件清单
+
+| 文件 | 变更类型 | 说明 |
+|------|----------|------|
+| `src/formatter/JsonFormatter.ts` | 修改 | 新增 `deepParse()` 递归展开函数；`format()` 新增外层引号剥离逻辑 |
+| `tests/jsonFormatter.test.ts` | 修改 | 新增 4 个测试：外层引号剥离、递归展开、三层嵌套、真实业务数据 |
+
+---
+
+### 关键设计决策
+
+#### 处理流程
+```
+输入
+  → trim()
+  → 若以 " 开头结尾 → JSON.parse 剥外层引号
+  → JSON.parse 得到对象
+  → deepParse() 递归遍历
+      → 每个 string 值：若以 { 或 [ 开头结尾 → 尝试 JSON.parse → 递归
+      → 失败则保留原字符串
+  → JSON.stringify(result, null, indent)
+```
+
+#### deepParse 安全性
+- 只对以 `{`/`[` 开头、`}`/`]` 结尾的字符串尝试解析，避免误展开普通字符串
+- try/catch 包裹，parse 失败静默保留原值，不影响其他字段
+- 递归深度由数据结构自然限制，无需额外保护（JSON 本身不允许循环引用）
+
+---
+
+### 测试结果
+
+```
+Test Files  7 passed (7)
+     Tests  102 passed (102)
+  Duration  ~4.9s
+```
+
+---
+
+## 2026-05-18 | v2.1.3 — Ctrl+C 复制格式化结果快捷键
+
+### 需求背景
+
+用户希望在不点击复制按钮的情况下，通过 `Ctrl+C` 直接复制格式化后的完整内容，提升操作效率。
+
+---
+
+### 变更文件清单
+
+| 文件 | 变更类型 | 说明 |
+|------|----------|------|
+| `src/components/CopyButton.vue` | 修改 | 新增 `defineExpose({ copy })`，将复制动作（含视觉反馈）暴露给父组件 |
+| `src/App.vue` | 修改 | 添加 `copyButtonRef`；全局 keydown 新增 `Ctrl+C` 处理：无文本选中且焦点不在 CodeMirror 编辑器内时，调用 `copyButtonRef.value?.copy()`；快捷键抽屉新增"复制"分组 |
+| `src/components/fun/EvolutionWidget.vue` | 修复 | 删除未使用的 `focusStartTime` ref（消除 TS6133 编译警告） |
+| `tests/previewParser.test.ts` | 修复 | 合并重复的 `import { describe, it, expect }` 语句；将 `parseJsonNodes`/`buildJsonGutterRows` import 移至文件顶部；移除未使用的 `MAX_JSON_FOLD_DEPTH` import |
+
+---
+
+### 关键设计决策
+
+#### 1. 触发条件：无选中文本 + 焦点不在编辑器
+`Ctrl+C` 的默认行为是复制选中文本，不能无条件拦截。判断逻辑：
+- `window.getSelection()?.toString()` 为空（无文本选中）
+- `document.activeElement?.closest('.cm-editor')` 为 null（焦点不在 CodeMirror 内）
+
+两个条件同时满足才拦截，确保编辑器内的正常复制操作不受影响。
+
+#### 2. 复用 CopyButton 的视觉反馈
+通过 `defineExpose({ copy })` 暴露 `handleClick` 的封装方法，快捷键触发时与点击按钮走完全相同的代码路径（Clipboard API → execCommand fallback → 成功/失败反馈），保持行为一致性。
+
+#### 3. 快捷键抽屉补充说明
+在抽屉顶部新增"复制"分组，展示 `Ctrl+C` 快捷键，让用户可以通过键盘图标发现这个功能。
+
+---
+
+### 测试结果
+
+```
+Test Files  7 passed (7)
+     Tests  107 passed (107)
+  Duration  ~2.7s
+```
+
+构建产物：零编译错误，零 TypeScript 错误。

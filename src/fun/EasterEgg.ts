@@ -3,18 +3,18 @@ import { FunMode } from './FunMode';
 export interface EggDefinition {
   id: string;
   name: string;
-  detect: (sql: string) => boolean;
   trigger: (ctx: EggContext) => void;
 }
 
-/** Minimal widget interface required by EasterEgg */
 export interface IEvolutionWidget {
   showToast(message: string, durationMs?: number): void;
   showTerminal(lines: Array<{ text: string; cls?: string }>): void;
   showAlert(durationMs?: number): void;
+  showTagline(text: string): void;
+  showConfetti(): void;
 }
 
-interface EggContext {
+export interface EggContext {
   widget: IEvolutionWidget;
 }
 
@@ -31,149 +31,113 @@ function saveDiscovered(ids: Set<string>): void {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify([...ids])); } catch { /* ignore */ }
 }
 
-/**
- * Terminal-style full-screen overlay — REMOVED.
- * All dramatic effects now use widget.showTerminal() instead.
- */
-
-function evaporatePreview(): void {
-  const code = document.querySelector('.preview-code') as HTMLElement | null;
-  if (!code) return;
-  code.classList.add('egg-evaporate');
-  setTimeout(() => code.classList.remove('egg-evaporate'), 1800);
-}
-
-function confetti(): void {
-  const el = document.createElement('div');
-  el.className = 'egg-confetti';
-  for (let i = 0; i < 40; i++) {
-    const p = document.createElement('div');
-    p.className = 'egg-confetti-piece';
-    p.style.setProperty('--x', `${Math.random() * 100}vw`);
-    p.style.setProperty('--delay', `${Math.random() * 0.6}s`);
-    p.style.setProperty('--color', `hsl(${Math.random() * 360},80%,60%)`);
-    el.appendChild(p);
-  }
-  document.body.appendChild(el);
-  setTimeout(() => el.remove(), 3000);
-}
-
 export const EGG_DEFINITIONS: EggDefinition[] = [
   {
-    id: 'nuclear',
-    name: '核弹拦截',
-    detect: sql => /\bDROP\s+TABLE\b/i.test(sql),
+    id: 'first-contact',
+    name: '第一次接触',
     trigger: ({ widget }) => {
-      widget.showAlert(3200);
+      widget.showTagline('文明的第一步');
+    },
+  },
+  {
+    id: 'reset',
+    name: '归零重启',
+    trigger: ({ widget }) => {
+      widget.showToast('🌌 归零，宇宙重新开始', 2500);
+    },
+  },
+  {
+    id: 'void',
+    name: '虚空凝视',
+    trigger: ({ widget }) => {
       widget.showTerminal([
-        { text: '⚠ 检测到高危操作：DROP TABLE' },
-        { text: '> 启动紧急拦截协议...' },
-        { text: '> [██████░░░░░░░░░░░░] 拦截中' },
-        { text: '> [████████████████████] 完成' },
-        { text: '✓ 已拦截，数据库保住了！', cls: 'evo-bubble-success' },
+        { text: '> SCANNING INPUT...' },
+        { text: '> INPUT: NULL' },
+        { text: '> STARING INTO THE VOID...' },
+        { text: '> THE VOID STARES BACK', cls: 'evo-bubble-warn' },
+        { text: '> 也许空白本身就是答案', cls: 'evo-bubble-dim' },
       ]);
     },
   },
   {
-    id: 'delete-nuke',
-    name: '差点删库跑路',
-    detect: sql => /\bDELETE\s+FROM\b/i.test(sql) && !/\bWHERE\b/i.test(sql),
+    id: 'time-traveler',
+    name: '时间旅行者',
     trigger: ({ widget }) => {
-      evaporatePreview();
-      widget.showToast('😱 差点删库跑路，还好有我', 2500);
+      widget.showToast('⏳ 在时间线上徘徊', 2500);
     },
   },
   {
-    id: 'truncate',
-    name: '清空宇宙',
-    detect: sql => /\bTRUNCATE\b/i.test(sql),
+    id: 'light-seeker',
+    name: '寻光者',
+    trigger: ({ widget }) => {
+      widget.showToast('💡 还没找到合适的光线', 2000);
+    },
+  },
+  {
+    id: 'multiverse',
+    name: '多元宇宙',
     trigger: ({ widget }) => {
       widget.showTerminal([
-        { text: '> TRUNCATE UNIVERSE INITIATED' },
-        { text: '> DELETING ALL MATTER...' },
-        { text: '> DELETING DARK MATTER...' },
-        { text: '> ROWS AFFECTED: ∞', cls: 'evo-bubble-warn' },
-        { text: '> REBUILDING FROM SCRATCH...', cls: 'evo-bubble-warn' },
+        { text: '> 检测到 5 条平行时间线' },
+        { text: '> 多元宇宙理论已验证', cls: 'evo-bubble-success' },
+        { text: '> 请问哪个才是主宇宙？', cls: 'evo-bubble-dim' },
       ]);
     },
   },
   {
-    id: 'select-star',
-    name: '全表扫描侦探',
-    detect: sql => /SELECT\s+\*/i.test(sql),
-    trigger: ({ widget }) => { widget.showToast('🤔 真的需要所有列吗？', 2000); },
-  },
-  {
-    id: 'select-one',
-    name: '宇宙答案',
-    detect: sql => /^\s*SELECT\s+1\s*;?\s*$/i.test(sql.trim()),
-    trigger: ({ widget }) => {
-      const code = document.querySelector('.preview-code code') as HTMLElement | null;
-      if (code) {
-        const orig = code.innerHTML;
-        code.textContent = '42';
-        setTimeout(() => { code.innerHTML = orig; }, 900);
-      }
-      widget.showToast('🌌 宇宙的答案是 42', 2500);
-    },
-  },
-  {
-    id: 'select-null',
-    name: '虚无哲学家',
-    detect: sql => /^\s*SELECT\s+NULL\s*;?\s*$/i.test(sql.trim()),
+    id: 'deep-focus',
+    name: '深度工作者',
     trigger: ({ widget }) => {
       widget.showTerminal([
-        { text: '> QUERYING THE VOID...' },
-        { text: '> RESULT: NULL' },
-        { text: '> MEANING: NULL' },
-        { text: '> EXISTENCE: NULL' },
-        { text: '> 虚无即是答案', cls: 'evo-bubble-dim' },
+        { text: '> 专注时长：30 分钟' },
+        { text: '> 进入深度工作状态', cls: 'evo-bubble-success' },
+        { text: '> 外部干扰已屏蔽' },
+        { text: '> 文明在专注中诞生', cls: 'evo-bubble-dim' },
       ]);
     },
   },
   {
-    id: 'semicolon-only',
-    name: '极简主义者',
-    detect: sql => /^\s*;\s*$/.test(sql.trim()),
-    trigger: ({ widget }) => { widget.showToast('🙏 史上最简洁的 SQL，大道至简', 2500); },
-  },
-  {
-    id: 'epic-query',
-    name: '史诗级查询',
-    detect: sql => sql.split('\n').length >= 500,
+    id: 'marathon',
+    name: '马拉松',
     trigger: ({ widget }) => {
-      confetti();
-      widget.showToast('🏆 史诗级查询，你还好吗？', 3000);
+      widget.showConfetti();
+      widget.showTerminal([
+        { text: '> 累计使用：60 分钟' },
+        { text: '> 你已完成一次文明长征', cls: 'evo-bubble-success' },
+        { text: '> 休息一下，宇宙不会跑掉', cls: 'evo-bubble-dim' },
+      ]);
     },
   },
 ];
 
+// 扩展 widget 接口，增加 showTagline / showConfetti
+
 export class EasterEgg {
   private discovered: Set<string>;
+  private readonly COOLDOWN_MS = 10000;
   private lastTriggered: Map<string, number> = new Map();
-  private readonly COOLDOWN_MS = 8000;
 
   constructor(private widget: IEvolutionWidget) {
     this.discovered = loadDiscovered();
   }
 
-  check(sql: string): void {
+  trigger(id: string): void {
     if (!FunMode.isEnabled()) return;
+    const egg = EGG_DEFINITIONS.find(e => e.id === id);
+    if (!egg) return;
     const now = Date.now();
-    const ctx: EggContext = { widget: this.widget };
-    for (const egg of EGG_DEFINITIONS) {
-      if (now - (this.lastTriggered.get(egg.id) ?? 0) < this.COOLDOWN_MS) continue;
-      if (egg.detect(sql)) {
-        egg.trigger(ctx);
-        this.lastTriggered.set(egg.id, now);
-        if (!this.discovered.has(egg.id)) {
-          this.discovered.add(egg.id);
-          saveDiscovered(this.discovered);
-          document.dispatchEvent(new CustomEvent('egg-discovered', { detail: egg.id }));
-        }
-        break;
-      }
+    if (now - (this.lastTriggered.get(id) ?? 0) < this.COOLDOWN_MS) return;
+    this.lastTriggered.set(id, now);
+    egg.trigger({ widget: this.widget });
+    if (!this.discovered.has(id)) {
+      this.discovered.add(id);
+      saveDiscovered(this.discovered);
+      document.dispatchEvent(new CustomEvent('egg-discovered', { detail: id }));
     }
+  }
+
+  isFirstVisit(): boolean {
+    return this.discovered.size === 0;
   }
 
   getDiscovered(): Set<string> { return this.discovered; }

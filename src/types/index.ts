@@ -4,6 +4,16 @@
 export type SqlDialect = 'postgresql' | 'mysql' | 'sqlite';
 
 /**
+ * Formatter mode — determines which formatter strategy is used.
+ */
+export type FormatterMode = 'sql' | 'json';
+
+/**
+ * Unified format target combining mode + dialect into a single selector value.
+ */
+export type FormatTarget = 'sql-postgresql' | 'sql-mysql' | 'sql-sqlite' | 'json';
+
+/**
  * Application theme.
  */
 export type AppTheme = 'dark' | 'light';

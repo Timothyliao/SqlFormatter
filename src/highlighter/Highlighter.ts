@@ -1,34 +1,28 @@
 import hljs from 'highlight.js/lib/core';
 import sql from 'highlight.js/lib/languages/sql';
+import json from 'highlight.js/lib/languages/json';
 import type { SqlDialect } from '../types/index';
 
-// Register only the SQL language pack to keep bundle size small
 hljs.registerLanguage('sql', sql);
+hljs.registerLanguage('json', json);
+
+type HlLanguage = SqlDialect | 'json';
 
 /**
  * Syntax highlighting module.
  * Wraps highlight.js and returns an HTML string with <span> tags.
  */
 export class Highlighter {
-  /**
-   * Apply syntax highlighting to formatted SQL text.
-   * @param formattedSql  Plain-text SQL (output of Formatter)
-   * @param _dialect      Reserved for future dialect-specific highlighting
-   * @returns             HTML string with hljs-* span classes applied
-   */
-  highlight(formattedSql: string, _dialect: SqlDialect): string {
-    if (!formattedSql) return '';
-
+  highlight(text: string, language: HlLanguage): string {
+    if (!text) return '';
+    const lang = language === 'json' ? 'json' : 'sql';
     try {
-      const result = hljs.highlight(formattedSql, { language: 'sql' });
-      return result.value;
+      return hljs.highlight(text, { language: lang }).value;
     } catch {
-      // Fallback: escape HTML entities and return as plain text
-      return this.escapeHtml(formattedSql);
+      return this.escapeHtml(text);
     }
   }
 
-  /** Escape HTML special characters for safe insertion into innerHTML */
   private escapeHtml(text: string): string {
     return text
       .replace(/&/g, '&amp;')

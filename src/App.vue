@@ -2,7 +2,9 @@
   <div class="app-root">
     <!-- Header -->
     <header class="app-header">
-      <h1 class="app-title">SQL Formatter</h1>
+      <div class="app-brand">
+        <img src="/assets/logo.png" alt="Lumino" class="app-logo" />
+      </div>
       <div class="config-panel">
         <ConfigPanel />
       </div>
@@ -23,11 +25,11 @@
       <!-- Left: Input Panel -->
       <section
         class="panel panel-input"
-        aria-label="SQL 输入"
+        :aria-label="inputPanelLabel"
         :style="{ flex: 'none', width: uiStore.leftPanelPct + '%' }"
       >
         <div class="panel-header">
-          <span class="panel-label">输入 SQL</span>
+          <span class="panel-label">{{ inputPanelLabel }}</span>
           <div class="save-button-container">
             <SaveButton />
           </div>
@@ -46,7 +48,7 @@
           <span class="panel-label">格式化结果</span>
           <div class="panel-header-actions">
             <div class="copy-button-container">
-              <CopyButton :get-plain-text="getPreviewPlainText" />
+              <CopyButton ref="copyButtonRef" :get-plain-text="getPreviewPlainText" />
             </div>
             <button
               class="shortcuts-trigger"
@@ -88,6 +90,11 @@
               </button>
             </div>
             <div class="shortcuts-drawer-body">
+              <div class="shortcuts-drawer-section-title">复制</div>
+              <div class="shortcuts-drawer-row">
+                <span class="shortcuts-drawer-desc">复制格式化结果</span>
+                <span class="shortcuts-drawer-keys"><kbd>Ctrl</kbd><kbd>C</kbd></span>
+              </div>
               <div class="shortcuts-drawer-section-title">折叠</div>
               <div class="shortcuts-drawer-row">
                 <span class="shortcuts-drawer-desc">折叠全部</span>
@@ -119,7 +126,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useEventListener, watchDebounced } from '@vueuse/core';
 import { useUiStore } from './stores/uiStore';
 import { useHistoryStore } from './stores/historyStore';
@@ -141,7 +148,12 @@ const formatterStore = useFormatterStore();
 
 const previewPanelRef = ref<InstanceType<typeof PreviewPanel>>();
 const historyPanelRef = ref<InstanceType<typeof HistoryPanel>>();
+const copyButtonRef = ref<InstanceType<typeof CopyButton>>();
 const shortcutsOpen = ref(false);
+
+const inputPanelLabel = computed(() =>
+  formatterStore.mode === 'json' ? '粘贴内容' : '输入 SQL',
+);
 
 function getPreviewPlainText(): string {
   return previewPanelRef.value?.getPlainText() ?? '';
@@ -188,6 +200,17 @@ useEventListener(document, 'keydown', (e: KeyboardEvent) => {
     e.preventDefault();
     historyStore.saveActiveDoc(formatterStore.sql);
     return;
+  }
+  // Ctrl+C: copy formatted output when no text is selected and focus is not inside the editor
+  if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+    const selection = window.getSelection()?.toString() ?? '';
+    const activeEl = document.activeElement;
+    const inEditor = activeEl?.closest('.cm-editor') !== null;
+    if (!selection && !inEditor) {
+      e.preventDefault();
+      copyButtonRef.value?.copy();
+      return;
+    }
   }
   if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === '[' || e.key === '{')) {
     e.preventDefault();

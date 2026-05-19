@@ -1,17 +1,22 @@
 <template>
-  <!-- Dialect selector (always visible in header) -->
+  <!-- Format target selector (always visible in header) -->
   <div class="config-panel-inner">
     <div class="config-group">
-      <label class="config-label">语言</label>
+      <label class="config-label">格式</label>
       <select
         class="config-select"
-        aria-label="SQL 语言"
-        :value="formatterStore.config.dialect"
-        @change="onDialectChange"
+        aria-label="格式化目标"
+        :value="formatterStore.formatTarget"
+        @change="onFormatTargetChange"
       >
-        <option value="postgresql">PostgreSQL</option>
-        <option value="mysql">MySQL</option>
-        <option value="sqlite">SQLite</option>
+        <optgroup label="SQL">
+          <option value="sql-postgresql">SQL · PostgreSQL</option>
+          <option value="sql-mysql">SQL · MySQL</option>
+          <option value="sql-sqlite">SQL · SQLite</option>
+        </optgroup>
+        <optgroup label="其他">
+          <option value="json">JSON</option>
+        </optgroup>
       </select>
     </div>
 
@@ -73,39 +78,42 @@
             </select>
           </div>
 
-          <div class="settings-row">
-            <label class="settings-row-label">关键字大小写</label>
-            <select class="config-select" aria-label="关键字大小写" v-model="pending.keywordCase">
-              <option value="upper">大写 (UPPER)</option>
-              <option value="lower">小写 (lower)</option>
-              <option value="preserve">保留原样</option>
-            </select>
-          </div>
+          <!-- SQL-only options -->
+          <template v-if="formatterStore.mode === 'sql'">
+            <div class="settings-row">
+              <label class="settings-row-label">关键字大小写</label>
+              <select class="config-select" aria-label="关键字大小写" v-model="pending.keywordCase">
+                <option value="upper">大写 (UPPER)</option>
+                <option value="lower">小写 (lower)</option>
+                <option value="preserve">保留原样</option>
+              </select>
+            </div>
 
-          <div class="settings-row">
-            <label class="settings-row-label">逗号位置</label>
-            <select class="config-select" aria-label="逗号位置" v-model="pending.commaPosition">
-              <option value="after">行尾（a,）</option>
-              <option value="before">行首（,a）</option>
-            </select>
-          </div>
+            <div class="settings-row">
+              <label class="settings-row-label">逗号位置</label>
+              <select class="config-select" aria-label="逗号位置" v-model="pending.commaPosition">
+                <option value="after">行尾（a,）</option>
+                <option value="before">行首（,a）</option>
+              </select>
+            </div>
 
-          <div class="settings-row">
-            <label class="settings-row-label">语句间空行</label>
-            <select class="config-select" aria-label="多语句间空行数" v-model.number="pending.linesBetweenQueries">
-              <option :value="1">1 行</option>
-              <option :value="2">2 行</option>
-            </select>
-          </div>
+            <div class="settings-row">
+              <label class="settings-row-label">语句间空行</label>
+              <select class="config-select" aria-label="多语句间空行数" v-model.number="pending.linesBetweenQueries">
+                <option :value="1">1 行</option>
+                <option :value="2">2 行</option>
+              </select>
+            </div>
 
-          <div class="settings-row">
-            <label class="settings-row-label">IN 每行值数</label>
-            <input
-              type="number" class="config-number" min="1" max="100"
-              aria-label="IN 子句每行值数量"
-              v-model.number="pending.valuesPerLine"
-            />
-          </div>
+            <div class="settings-row">
+              <label class="settings-row-label">IN 每行值数</label>
+              <input
+                type="number" class="config-number" min="1" max="100"
+                aria-label="IN 子句每行值数量"
+                v-model.number="pending.valuesPerLine"
+              />
+            </div>
+          </template>
         </div>
 
         <!-- 显示 section -->
@@ -138,7 +146,7 @@ import { useEventListener } from '@vueuse/core';
 import { useFormatterStore } from '../stores/formatterStore';
 import { useUiStore } from '../stores/uiStore';
 import { DEFAULT_CONFIG, DEFAULT_FONT_SIZE } from '../types/index';
-import type { FormatterConfig } from '../types/index';
+import type { FormatterConfig, FormatTarget } from '../types/index';
 
 const STORAGE_KEY = 'sql-formatter-config';
 
@@ -161,7 +169,7 @@ function loadFromStorage(): void {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return;
-    const data = JSON.parse(raw) as { config?: Partial<FormatterConfig>; fontSize?: number };
+    const data = JSON.parse(raw) as { config?: Partial<FormatterConfig>; fontSize?: number; formatTarget?: FormatTarget };
     if (data.config) {
       const c = data.config;
       if (c.dialect && ['postgresql', 'mysql', 'sqlite'].includes(c.dialect)) {
@@ -183,8 +191,10 @@ function loadFromStorage(): void {
       if (typeof c.valuesPerLine === 'number' && c.valuesPerLine >= 1 && c.valuesPerLine <= 100) {
         pending.valuesPerLine = c.valuesPerLine;
       }
-      // Apply loaded config to store
       formatterStore.config = { ...pending };
+    }
+    if (data.formatTarget) {
+      formatterStore.setFormatTarget(data.formatTarget);
     }
     if (typeof data.fontSize === 'number' && data.fontSize >= 10 && data.fontSize <= 24) {
       pendingFontSize.value = data.fontSize;
@@ -197,24 +207,22 @@ function saveToStorage(): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       config: { ...formatterStore.config },
+      formatTarget: formatterStore.formatTarget,
       fontSize: uiStore.fontSize,
     }));
   } catch { /* ignore */ }
 }
 
-function onDialectChange(e: Event): void {
-  const val = (e.target as HTMLSelectElement).value as FormatterConfig['dialect'];
-  formatterStore.config = { ...formatterStore.config, dialect: val };
-  pending.dialect = val;
+function onFormatTargetChange(e: Event): void {
+  const val = (e.target as HTMLSelectElement).value as FormatTarget;
+  formatterStore.setFormatTarget(val);
   saveToStorage();
 }
 
 function openModal(): void {
-  // Sync pending from current store values
   Object.assign(pending, formatterStore.config);
   pendingFontSize.value = uiStore.fontSize;
   modalDisplay.value = 'flex';
-  // Force reflow then add class
   requestAnimationFrame(() => {
     isOpen.value = true;
   });
@@ -222,7 +230,6 @@ function openModal(): void {
 
 function closeModal(): void {
   isOpen.value = false;
-  // Hide after transition
   setTimeout(() => {
     if (!isOpen.value) modalDisplay.value = '';
   }, 300);
@@ -249,7 +256,7 @@ useEventListener(document, 'keydown', (e: KeyboardEvent) => {
   if (e.key === 'Escape' && isOpen.value) closeModal();
 });
 
-// Watch dialect changes to keep pending in sync
+// Keep pending.dialect in sync when formatTarget changes externally
 watch(() => formatterStore.config.dialect, (d) => {
   pending.dialect = d;
 });

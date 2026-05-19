@@ -73,4 +73,11 @@ function setFeedback(text: string, cls: string, duration: number): void {
     feedbackTimer = null;
   }, duration);
 }
+
+/** 供外部（快捷键）调用，直接触发复制流程 */
+async function copy(): Promise<void> {
+  await handleClick();
+}
+
+defineExpose({ copy });
 </script>

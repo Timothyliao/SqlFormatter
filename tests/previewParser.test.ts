@@ -10,6 +10,8 @@ import {
   escapeHtml,
   unescapeHtml,
   getPlainTextFromBlocks,
+  parseJsonNodes,
+  buildJsonGutterRows,
 } from '../src/utils/previewParser';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -168,5 +170,59 @@ describe('getPlainTextFromBlocks — no HTML tags', () => {
     expect(text).toContain('\n\n');
     expect(text).toContain('SELECT 1;');
     expect(text).toContain('SELECT 2;');
+  });
+});
+
+describe('parseJsonNodes', () => {
+  it('returns empty for empty input', () => {
+    expect(parseJsonNodes('')).toEqual([]);
+  });
+
+  it('detects top-level object node', () => {
+    const json = '{\n  "a": 1\n}';
+    const nodes = parseJsonNodes(json);
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0]).toMatchObject({ startLine: 1, endLine: 3, depth: 0 });
+  });
+
+  it('detects nested array node at depth 1', () => {
+    const json = '{\n  "items": [\n    1,\n    2\n  ]\n}';
+    const nodes = parseJsonNodes(json);
+    const arr = nodes.find(n => n.depth === 1);
+    expect(arr).toBeDefined();
+    expect(arr!.startLine).toBe(2);
+    expect(arr!.endLine).toBe(5);
+  });
+
+  it('emits nodes at all depths (no depth limit)', () => {
+    const json = '{\n  "a": {\n    "b": {\n      "c": 1\n    }\n  }\n}';
+    const nodes = parseJsonNodes(json);
+    // All three levels should be foldable
+    expect(nodes.some(n => n.depth === 0)).toBe(true);
+    expect(nodes.some(n => n.depth === 1)).toBe(true);
+    expect(nodes.some(n => n.depth === 2)).toBe(true);
+  });
+
+  it('does not emit node when open and close are on same line', () => {
+    const json = '{\n  "a": {}\n}';
+    const nodes = parseJsonNodes(json);
+    // {} on same line should not produce a node
+    expect(nodes.every(n => n.startLine !== n.endLine)).toBe(true);
+  });
+});
+
+describe('buildJsonGutterRows', () => {
+  it('hides lines inside collapsed node', () => {
+    const nodes = [{ startLine: 1, endLine: 3, depth: 0 }];
+    const collapsed = new Map([[1, true]]);
+    const rows = buildJsonGutterRows(3, nodes, collapsed);
+    // Only lines 1 and 3 visible (line 2 hidden)
+    expect(rows.map(r => r.lineNum)).toEqual([1, 3]);
+  });
+
+  it('shows all lines when not collapsed', () => {
+    const nodes = [{ startLine: 1, endLine: 3, depth: 0 }];
+    const rows = buildJsonGutterRows(3, nodes, new Map());
+    expect(rows).toHaveLength(3);
   });
 });

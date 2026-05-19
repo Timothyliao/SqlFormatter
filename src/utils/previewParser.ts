@@ -276,3 +276,132 @@ export function getPlainTextFromBlocks(blocks: StatementBlock[]): string {
     .map((b) => unescapeHtml(b.htmlLines.join('\n').replace(/<[^>]*>/g, '')))
     .join('\n\n');
 }
+
+// ── JSON fold nodes ───────────────────────────────────────────────────────────
+
+/**
+ * A foldable JSON node (object or array).
+ * Only nodes at depth <= MAX_JSON_FOLD_DEPTH are shown with fold buttons.
+ */
+export interface JsonFoldNode {
+  /** 1-based line number of the opening { or [ */
+  startLine: number;
+  /** 1-based line number of the closing } or ] */
+  endLine: number;
+  /** Nesting depth (root level = 0) */
+  depth: number;
+}
+
+/** Maximum depth at which fold buttons are shown */
+export const MAX_JSON_FOLD_DEPTH = 1;
+
+/**
+ * Parse formatted JSON plain text into a list of foldable nodes.
+ * Scans line-by-line, tracks open braces/brackets with a stack.
+ * Emits a JsonFoldNode when a closer is found and span > 1 line and depth <= MAX.
+ */
+export function parseJsonNodes(plainText: string): JsonFoldNode[] {
+  if (!plainText.trim()) return [];
+
+  const lines = plainText.split('\n');
+  const nodes: JsonFoldNode[] = [];
+  const stack: Array<{ line: number; depth: number }> = [];
+  let depth = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const lineNum = i + 1;
+    const text = lines[i] ?? '';
+    let inString = false;
+    let escape = false;
+
+    for (let ci = 0; ci < text.length; ci++) {
+      const ch = text[ci];
+      if (escape) { escape = false; continue; }
+      if (ch === '\\' && inString) { escape = true; continue; }
+      if (ch === '"') { inString = !inString; continue; }
+      if (inString) continue;
+
+      if (ch === '{' || ch === '[') {
+        stack.push({ line: lineNum, depth });
+        depth++;
+      } else if (ch === '}' || ch === ']') {
+        depth = Math.max(0, depth - 1);
+        const open = stack.pop();
+        if (open && open.line !== lineNum) {
+          nodes.push({ startLine: open.line, endLine: lineNum, depth: open.depth });
+        }
+      }
+    }
+  }
+
+  return nodes;
+}
+
+/**
+ * Build gutter rows for JSON mode.
+ * blockIdx encodes startLine (used as key into the collapsed Map).
+ */
+export function buildJsonGutterRows(
+  totalLines: number,
+  nodes: JsonFoldNode[],
+  collapsed: Map<number, boolean>,
+): GutterRow[] {
+  const hiddenLines = new Set<number>();
+  for (const node of nodes) {
+    if (collapsed.get(node.startLine)) {
+      for (let l = node.startLine + 1; l < node.endLine; l++) {
+        hiddenLines.add(l);
+      }
+    }
+  }
+
+  const nodeByStart = new Map<number, JsonFoldNode>();
+  for (const node of nodes) nodeByStart.set(node.startLine, node);
+
+  const rows: GutterRow[] = [];
+  let keyCounter = 0;
+  for (let l = 1; l <= totalLines; l++) {
+    if (hiddenLines.has(l)) continue;
+    const node = nodeByStart.get(l);
+    rows.push({
+      key: `jg-${keyCounter++}`,
+      lineNum: l,
+      foldable: !!node,
+      blockIdx: node ? l : -1,
+    });
+  }
+  return rows;
+}
+
+/**
+ * Build innerHTML for JSON mode, inserting fold summaries on collapsed lines.
+ */
+export function buildJsonCodeHtml(
+  htmlLines: string[],
+  nodes: JsonFoldNode[],
+  collapsed: Map<number, boolean>,
+): string {
+  const hiddenLines = new Set<number>();
+  const closerChar = new Map<number, string>();
+
+  for (const node of nodes) {
+    const endText = (htmlLines[node.endLine - 1] ?? '').replace(/<[^>]*>/g, '').trim();
+    closerChar.set(node.startLine, endText.startsWith('}') ? '}' : ']');
+    if (collapsed.get(node.startLine)) {
+      for (let l = node.startLine + 1; l < node.endLine; l++) hiddenLines.add(l);
+    }
+  }
+
+  const parts: string[] = [];
+  for (let i = 0; i < htmlLines.length; i++) {
+    const lineNum = i + 1;
+    if (hiddenLines.has(lineNum)) continue;
+    parts.push(htmlLines[i] ?? '');
+    if (collapsed.get(lineNum)) {
+      const closer = closerChar.get(lineNum) ?? '}';
+      parts.push(` <span class="fold-summary">\u2026 ${escapeHtml(closer)}</span>`);
+    }
+    if (i < htmlLines.length - 1) parts.push('\n');
+  }
+  return parts.join('');
+}

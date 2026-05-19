@@ -2,14 +2,19 @@
   <div
     ref="containerRef"
     class="evo-widget"
-    :class="{ 'evo-widget--max': currentLevel === 7, 'evo-widget--alert': isAlerting }"
+    :class="{
+      'evo-widget--max': currentLevel === 7,
+      'evo-widget--alert': isAlerting,
+      'evo-widget--dormant': eraState === 'dormant',
+      'evo-widget--chaotic': eraState === 'chaotic',
+    }"
     :style="widgetStyle"
-    aria-label="SQL 进化论"
-    @mouseenter="showTooltip"
-    @mouseleave="hideTooltip"
+    aria-label="进化论"
+    @mouseenter="onMouseEnter"
+    @mouseleave="onMouseLeave"
   >
     <button class="evo-book-btn" aria-label="彩蛋图鉴" @click.stop="openEggBook">✦</button>
-    <div ref="emojiEl" class="evo-emoji">{{ levelData.emoji }}</div>
+    <div ref="emojiEl" class="evo-emoji">{{ displayEmoji }}</div>
     <div class="evo-level">Lv.{{ currentLevel }}</div>
 
     <!-- Tooltip -->
@@ -19,20 +24,19 @@
       :class="`evo-tooltip--${snapEdge} evo-tooltip--visible`"
     >
       <div class="evo-tt-title">{{ levelData.emoji }} {{ levelData.name }}</div>
-      <div class="evo-tt-score">复杂度评分：{{ currentScore.total }}</div>
+      <div class="evo-tt-score">活跃度：{{ currentScore.total }}</div>
       <div class="evo-tt-bar">
         <div class="evo-tt-bar-fill" :style="{ width: tooltipPct + '%' }" />
       </div>
       <div class="evo-tt-next">{{ tooltipNextText }}</div>
       <div class="evo-tt-breakdown">
-        <template v-if="currentScore.breakdown.joins > 0">JOIN ×{{ currentScore.breakdown.joins }} </template>
-        <template v-if="currentScore.breakdown.ctes > 0">CTE ×{{ currentScore.breakdown.ctes }} </template>
-        <template v-if="currentScore.breakdown.subqueries > 0">子查询 ×{{ currentScore.breakdown.subqueries }} </template>
-        <template v-if="currentScore.breakdown.windowFns > 0">窗口函数 ×{{ currentScore.breakdown.windowFns }}</template>
+        <span>编辑 ×{{ currentScore.breakdown.edits }}</span>
+        <span>专注 {{ currentScore.breakdown.focusMinutes }}min</span>
+        <span>多样性 ×{{ currentScore.breakdown.diversity }}</span>
       </div>
     </div>
 
-    <!-- Message bubble (terminal / toast / tagline) -->
+    <!-- Message bubble (terminal) -->
     <div
       v-if="bubbleVisible"
       class="evo-bubble"
@@ -49,41 +53,91 @@
     </div>
 
     <!-- Toast -->
-    <div
-      v-if="toastVisible"
-      class="evo-toast evo-toast--visible"
-      :style="popupStyle"
-    >{{ toastText }}</div>
+    <div v-if="toastVisible" class="evo-toast evo-toast--visible" :style="popupStyle">
+      {{ toastText }}
+    </div>
 
     <!-- Tagline -->
-    <div
-      v-if="taglineVisible"
-      class="evo-tagline evo-tagline--visible"
-      :style="popupStyle"
-    >{{ taglineText }}</div>
+    <div v-if="taglineVisible" class="evo-tagline evo-tagline--visible" :style="popupStyle">
+      {{ taglineText }}
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useFormatterStore } from '../../stores/formatterStore';
+import { useThemeStore } from '../../stores/themeStore';
+import { useHistoryStore } from '../../stores/historyStore';
 import { FunMode } from '../../fun/FunMode';
-import { scoreSql, getLevel, EVOLUTION_LEVELS } from '../../fun/SqlComplexity';
+import { calcScore, calcEra, getLevel, EVOLUTION_LEVELS } from '../../fun/ActivityScore';
+import type { ActivityScore } from '../../fun/ActivityScore';
 import { EasterEgg } from '../../fun/EasterEgg';
 import type { IEvolutionWidget } from '../../fun/EasterEgg';
 import { useEvoWidget } from '../../composables/useEvoWidget';
-import type { ComplexityScore } from '../../fun/SqlComplexity';
+
+// ── Stores ────────────────────────────────────────────────────────────────────
 
 const formatterStore = useFormatterStore();
+const themeStore = useThemeStore();
+const historyStore = useHistoryStore();
+
+// ── Drag / snap ───────────────────────────────────────────────────────────────
 
 const containerRef = ref<HTMLElement | null>(null);
 const emojiEl = ref<HTMLElement | null>(null);
-
 const { snapEdge, isDragging } = useEvoWidget(containerRef);
 
+// ── Activity tracking ─────────────────────────────────────────────────────────
+
+const editCount = ref(0);
+const focusMinutes = ref(0);
+const diversity = ref(0);  // 已计入的多样性种类
+const diversityFlags = { theme: false, config: false, doc: false };
+
+const recentLengths = ref<number[]>([]);  // 最近 5 次内容长度，用于计算纪元
+const lastInputTime = ref(Date.now());
+const eraState = ref<'dormant' | 'stable' | 'chaotic' | 'reviving'>('stable');
+
+let focusTimer: ReturnType<typeof setInterval> | null = null;
+let dormantTimer: ReturnType<typeof setTimeout> | null = null;
+const DORMANT_MS = 2 * 60 * 1000;
+
+function resetDormantTimer(): void {
+  if (dormantTimer) clearTimeout(dormantTimer);
+  if (eraState.value === 'dormant') {
+    eraState.value = 'reviving';
+    easterEgg.trigger('revive'); // 无彩蛋定义时静默忽略
+    setTimeout(() => {
+      eraState.value = calcEra(recentLengths.value) === 'chaotic' ? 'chaotic' : 'stable';
+    }, 1500);
+  }
+  dormantTimer = setTimeout(() => {
+    eraState.value = 'dormant';
+  }, DORMANT_MS);
+}
+
+// ── Score & level ─────────────────────────────────────────────────────────────
+
+const currentScore = ref<ActivityScore | null>(null);
 const currentLevel = ref(1);
-const currentScore = ref<ComplexityScore | null>(null);
-const tooltipVisible = ref(false);
+
+function updateScore(): void {
+  const score = calcScore(editCount.value, focusMinutes.value, diversity.value, formatterStore.sql.length);
+  currentScore.value = score;
+  const level = getLevel(score);
+  if (level.level > currentLevel.value) {
+    enqueue({ type: 'tagline', text: `已进化为 ${level.name}！` });
+  }
+  currentLevel.value = level.level;
+}
+
+// ── Display emoji (dormant → 💤, else level emoji) ────────────────────────────
+
+const displayEmoji = computed(() => {
+  if (eraState.value === 'dormant') return '💤';
+  return levelData.value.emoji;
+});
 
 // ── Message queue ─────────────────────────────────────────────────────────────
 
@@ -103,6 +157,7 @@ const toastText = ref('');
 const taglineVisible = ref(false);
 const taglineText = ref('');
 const isAlerting = ref(false);
+const tooltipVisible = ref(false);
 
 function enqueue(item: QueueItem): void {
   queue.push(item);
@@ -121,26 +176,20 @@ function processNext(): void {
   }
 }
 
-function doneAndNext(): void {
-  setTimeout(() => processNext(), 500);
-}
+function doneAndNext(): void { setTimeout(() => processNext(), 500); }
 
 function playTerminal(lines: Array<{ text: string; cls?: string }>): void {
-  // Animate typing line by line
   const result: Array<{ text: string; cls?: string }> = [];
   bubbleLines.value = [];
   bubbleVisible.value = true;
-
   let cumulativeDelay = 120;
   lines.forEach(({ text, cls }, idx) => {
     const rowDelay = cumulativeDelay;
     const typeDuration = Math.min(900, Math.max(300, text.length * 28));
     cumulativeDelay += typeDuration + 100;
-
     setTimeout(() => {
       result.push({ text: '', cls });
       bubbleLines.value = [...result];
-
       let i = 0;
       const speed = Math.floor(typeDuration / text.length) || 28;
       const timer = setInterval(() => {
@@ -151,7 +200,6 @@ function playTerminal(lines: Array<{ text: string; cls?: string }>): void {
       }, speed);
     }, rowDelay);
   });
-
   const totalDuration = cumulativeDelay + 1500;
   setTimeout(() => {
     bubbleVisible.value = false;
@@ -178,7 +226,6 @@ function playTagline(text: string): void {
 }
 
 function playAlert(durationMs: number): void {
-  // Temporarily replace emoji with 🚨 and activate alert border animation
   const prevEmoji = emojiEl.value?.textContent ?? '';
   if (emojiEl.value) emojiEl.value.textContent = '🚨';
   isAlerting.value = true;
@@ -189,39 +236,65 @@ function playAlert(durationMs: number): void {
   }, durationMs);
 }
 
+function confetti(): void {
+  const el = document.createElement('div');
+  el.className = 'egg-confetti';
+  for (let i = 0; i < 40; i++) {
+    const p = document.createElement('div');
+    p.className = 'egg-confetti-piece';
+    p.style.setProperty('--x', `${Math.random() * 100}vw`);
+    p.style.setProperty('--delay', `${Math.random() * 0.6}s`);
+    p.style.setProperty('--color', `hsl(${Math.random() * 360},80%,60%)`);
+    el.appendChild(p);
+  }
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+// ── Widget API for EasterEgg ──────────────────────────────────────────────────
+
+const widgetApi: IEvolutionWidget = {
+  showToast: (message, durationMs = 2500) => {
+    if (!FunMode.isEnabled()) return;
+    enqueue({ type: 'toast', message, durationMs });
+  },
+  showTerminal: (lines) => {
+    if (!FunMode.isEnabled()) return;
+    enqueue({ type: 'terminal', lines });
+  },
+  showAlert: (durationMs = 3000) => {
+    if (!FunMode.isEnabled()) return;
+    enqueue({ type: 'alert', durationMs });
+  },
+  showTagline: (text) => {
+    if (!FunMode.isEnabled()) return;
+    enqueue({ type: 'tagline', text });
+  },
+  showConfetti: () => {
+    if (!FunMode.isEnabled()) return;
+    confetti();
+  },
+};
+
+const easterEgg = new EasterEgg(widgetApi);
+
 // ── Popup positioning ─────────────────────────────────────────────────────────
 
 const SIDE_GAP = 56 + 14;
-
 const popupStyle = computed(() => {
   const style: Record<string, string> = { position: 'absolute' };
   switch (snapEdge.value) {
-    case 'right':
-      style['right'] = `${SIDE_GAP}px`;
-      style['top'] = '-8px';
-      break;
-    case 'left':
-      style['left'] = `${SIDE_GAP}px`;
-      style['top'] = '-8px';
-      break;
-    case 'bottom':
-      style['bottom'] = `${SIDE_GAP}px`;
-      style['right'] = '0';
-      break;
-    case 'top':
-      style['top'] = `${SIDE_GAP}px`;
-      style['right'] = '0';
-      break;
+    case 'right':  style['right']  = `${SIDE_GAP}px`; style['top']    = '-8px'; break;
+    case 'left':   style['left']   = `${SIDE_GAP}px`; style['top']    = '-8px'; break;
+    case 'bottom': style['bottom'] = `${SIDE_GAP}px`; style['right']  = '0';    break;
+    case 'top':    style['top']    = `${SIDE_GAP}px`; style['right']  = '0';    break;
   }
   return style;
 });
 
-// ── Widget style ──────────────────────────────────────────────────────────────
+// ── Level / tooltip ───────────────────────────────────────────────────────────
 
-const levelData = computed(() => {
-  const score = currentScore.value ?? { total: 0, breakdown: { lines: 0, joins: 0, subqueries: 0, ctes: 0, windowFns: 0, unions: 0 } };
-  return getLevel(score);
-});
+const levelData = computed(() => getLevel(currentScore.value ?? { total: 0, breakdown: { edits: 0, focusMinutes: 0, diversity: 0, contentTier: 0 } }));
 
 const widgetStyle = computed(() => ({
   display: FunMode.isEnabled() ? '' : 'none',
@@ -229,12 +302,10 @@ const widgetStyle = computed(() => ({
   '--evo-glow': levelData.value.glowColor,
 }));
 
-// ── Tooltip ───────────────────────────────────────────────────────────────────
-
 const tooltipPct = computed(() => {
   if (!currentScore.value) return 0;
   const level = levelData.value;
-  const next = EVOLUTION_LEVELS.find((l) => l.level === level.level + 1);
+  const next = EVOLUTION_LEVELS.find(l => l.level === level.level + 1);
   if (!next) return 100;
   return Math.round(((currentScore.value.total - level.minScore) / (next.minScore - level.minScore)) * 100);
 });
@@ -242,81 +313,137 @@ const tooltipPct = computed(() => {
 const tooltipNextText = computed(() => {
   if (!currentScore.value) return '';
   const level = levelData.value;
-  const next = EVOLUTION_LEVELS.find((l) => l.level === level.level + 1);
+  const next = EVOLUTION_LEVELS.find(l => l.level === level.level + 1);
   if (!next) return '已达最高进化';
   return `距下一级还差 ${next.minScore - currentScore.value.total} 分`;
 });
 
-function showTooltip(): void {
-  if (!currentScore.value || isDragging.value) return;
-  tooltipVisible.value = true;
+function onMouseEnter(): void {
+  if (!isDragging.value) tooltipVisible.value = true;
 }
-
-function hideTooltip(): void {
+function onMouseLeave(): void {
   tooltipVisible.value = false;
 }
 
-// ── Easter egg integration ────────────────────────────────────────────────────
+// ── Watchers ──────────────────────────────────────────────────────────────────
 
-// Expose widget API for EasterEgg
-const widgetApi: IEvolutionWidget = {
-  showToast: (message: string, durationMs = 2500) => {
-    if (!FunMode.isEnabled()) return;
-    enqueue({ type: 'toast', message, durationMs });
-  },
-  showTerminal: (lines: Array<{ text: string; cls?: string }>) => {
-    if (!FunMode.isEnabled()) return;
-    if (emojiEl.value) {
-      emojiEl.value.classList.add('evo-alert');
-      emojiEl.value.addEventListener('animationend', () => {
-        emojiEl.value?.classList.remove('evo-alert');
-      }, { once: true });
-    }
-    enqueue({ type: 'terminal', lines });
-  },
-  showAlert: (durationMs = 3000) => {
-    if (!FunMode.isEnabled()) return;
-    enqueue({ type: 'alert', durationMs });
-  },
-};
+// 内容变化 → 编辑计数 + 纪元计算 + 彩蛋检测
+watch(() => formatterStore.sql, (sql, prev) => {
+  if (!FunMode.isEnabled()) return;
+  resetDormantTimer();
+  lastInputTime.value = Date.now();
 
-const easterEgg = new EasterEgg(widgetApi);
+  // 清空检测
+  if (!sql.trim() && prev?.trim()) {
+    easterEgg.trigger('reset');
+  }
 
-// ── SQL watcher ───────────────────────────────────────────────────────────────
+  editCount.value++;
 
-watch(
-  () => formatterStore.sql,
-  (sql) => {
-    if (!FunMode.isEnabled()) return;
+  // 记录最近 5 次长度
+  recentLengths.value = [...recentLengths.value.slice(-4), sql.length];
+  const era = calcEra(recentLengths.value);
+  if (eraState.value !== 'dormant' && eraState.value !== 'reviving') {
+    eraState.value = era;
+  }
 
-    const score = scoreSql(sql);
-    const level = getLevel(score);
-    currentScore.value = score;
+  updateScore();
+});
 
-    if (level.level !== currentLevel.value) {
-      const isUpgrade = level.level > currentLevel.value;
-      currentLevel.value = level.level;
-      if (isUpgrade) {
-        enqueue({ type: 'tagline', text: `已进化为 ${level.name}！` });
-      }
-    }
+// 主题切换多样性
+watch(() => themeStore.theme, () => {
+  if (!diversityFlags.theme) {
+    diversityFlags.theme = true;
+    diversity.value++;
+    updateScore();
+  }
+  // 切换 3 次触发彩蛋（用独立计数）
+});
 
-    easterEgg.check(sql);
-  },
-);
+// 文档切换多样性 + multiverse 彩蛋
+watch(() => historyStore.docs.length, (len) => {
+  if (!diversityFlags.doc) {
+    diversityFlags.doc = true;
+    diversity.value++;
+    updateScore();
+  }
+  if (len >= 5) easterEgg.trigger('multiverse');
+});
 
-// ── EggBook button ────────────────────────────────────────────────────────────
+// 配置变化多样性
+watch(() => formatterStore.config, () => {
+  if (!diversityFlags.config) {
+    diversityFlags.config = true;
+    diversity.value++;
+    updateScore();
+  }
+}, { deep: true });
+
+// ── 主题切换次数计数（light-seeker）────────────────────────────────────────────
+
+let themeToggleCount = 0;
+watch(() => themeStore.theme, () => {
+  themeToggleCount++;
+  if (themeToggleCount === 3) easterEgg.trigger('light-seeker');
+});
+
+// ── 键盘事件：撤销/重做计数（time-traveler）──────────────────────────────────
+
+let undoRedoCount = 0;
+function onKeyDown(e: KeyboardEvent): void {
+  if (!FunMode.isEnabled()) return;
+  const isUndo = (e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'z';
+  const isRedo = (e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'));
+  if (isUndo || isRedo) {
+    undoRedoCount++;
+    if (undoRedoCount === 5) easterEgg.trigger('time-traveler');
+  }
+}
+
+// ── 专注时长计时 ──────────────────────────────────────────────────────────────
+
+let totalFocusMinutes = 0;
+function startFocusTimer(): void {
+  focusTimer = setInterval(() => {
+    if (eraState.value === 'dormant') return;
+    totalFocusMinutes++;
+    focusMinutes.value = totalFocusMinutes;
+    updateScore();
+    if (totalFocusMinutes === 30) easterEgg.trigger('deep-focus');
+    if (totalFocusMinutes === 60) easterEgg.trigger('marathon');
+  }, 60 * 1000);
+}
+
+// ── EggBook ───────────────────────────────────────────────────────────────────
 
 function openEggBook(): void {
   document.dispatchEvent(new CustomEvent('open-egg-book'));
 }
 
+// ── Lifecycle ─────────────────────────────────────────────────────────────────
+
 onMounted(() => {
-  // Initialize with current sql
-  if (formatterStore.sql) {
-    const score = scoreSql(formatterStore.sql);
-    currentScore.value = score;
-    currentLevel.value = getLevel(score).level;
+  updateScore();
+  resetDormantTimer();
+  startFocusTimer();
+  document.addEventListener('keydown', onKeyDown);
+
+  // 首次访问彩蛋
+  if (easterEgg.isFirstVisit() && !formatterStore.sql.trim()) {
+    setTimeout(() => easterEgg.trigger('first-contact'), 1500);
   }
+
+  // 空白停留 1 分钟 → void 彩蛋
+  setInterval(() => {
+    if (!formatterStore.sql.trim() && Date.now() - lastInputTime.value > 60 * 1000) {
+      easterEgg.trigger('void');
+    }
+  }, 60 * 1000);
+});
+
+onUnmounted(() => {
+  if (focusTimer) clearInterval(focusTimer);
+  if (dormantTimer) clearTimeout(dormantTimer);
+  document.removeEventListener('keydown', onKeyDown);
 });
 </script>

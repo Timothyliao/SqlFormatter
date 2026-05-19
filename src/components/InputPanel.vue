@@ -7,21 +7,23 @@ import { ref, watch, onMounted, onUnmounted } from 'vue';
 import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter } from '@codemirror/view';
 import { EditorState, Compartment } from '@codemirror/state';
 import { sql } from '@codemirror/lang-sql';
+import { json } from '@codemirror/lang-json';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { bracketMatching, indentOnInput } from '@codemirror/language';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { useFormatterStore } from '../stores/formatterStore';
 import { useThemeStore } from '../stores/themeStore';
-import type { AppTheme } from '../types/index';
+import type { AppTheme, FormatterMode } from '../types/index';
 
 const editorContainer = ref<HTMLElement>();
 const formatterStore = useFormatterStore();
 const themeStore = useThemeStore();
 
 const themeCompartment = new Compartment();
+const langCompartment = new Compartment();
 let view: EditorView | null = null;
 
-// ── Theme definitions (same as original InputPanel.ts) ────────────────────────
+// ── Theme definitions ─────────────────────────────────────────────────────────
 
 const lightTheme = EditorView.theme(
   {
@@ -74,6 +76,10 @@ function getThemeExtensions(theme: AppTheme) {
   return theme === 'light' ? [lightTheme] : [oneDark, darkThemeOverrides];
 }
 
+function getLangExtension(mode: FormatterMode) {
+  return mode === 'json' ? json() : sql();
+}
+
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 
 onMounted(() => {
@@ -87,7 +93,7 @@ onMounted(() => {
         keymap.of([...defaultKeymap, ...historyKeymap]),
         indentOnInput(),
         bracketMatching(),
-        sql(),
+        langCompartment.of(getLangExtension(formatterStore.mode)),
         lineNumbers(),
         highlightActiveLine(),
         highlightActiveLineGutter(),
@@ -96,7 +102,6 @@ onMounted(() => {
         EditorView.updateListener.of((update) => {
           if (update.docChanged) {
             const val = update.state.doc.toString();
-            // Only write to store if it differs (avoid loop with external writes)
             if (val !== formatterStore.sql) {
               formatterStore.sql = val;
             }
@@ -107,7 +112,6 @@ onMounted(() => {
     parent: editorContainer.value,
   });
 
-  // Make editor fill the container
   const cmEl = editorContainer.value.querySelector('.cm-editor') as HTMLElement | null;
   if (cmEl) {
     cmEl.style.flex = '1';
@@ -135,12 +139,22 @@ watch(
   },
 );
 
-// Theme hot-swap via Compartment (no editor rebuild)
+// Theme hot-swap via Compartment
 watch(
   () => themeStore.theme,
   (theme) => {
     view?.dispatch({
       effects: themeCompartment.reconfigure(getThemeExtensions(theme)),
+    });
+  },
+);
+
+// Language hot-swap via Compartment
+watch(
+  () => formatterStore.mode,
+  (mode) => {
+    view?.dispatch({
+      effects: langCompartment.reconfigure(getLangExtension(mode)),
     });
   },
 );

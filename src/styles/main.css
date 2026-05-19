@@ -101,12 +101,27 @@ body {
   flex-wrap: wrap;
 }
 
+.app-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex-shrink: 0;
+}
+
 .app-title {
   font-size: 16px;
   font-weight: 600;
   color: var(--color-accent);
   white-space: nowrap;
   letter-spacing: 0.02em;
+  line-height: 1.2;
+}
+
+.app-logo {
+  height: 32px;
+  width: auto;
+  display: block;
+  object-fit: contain;
 }
 
 /* ── Config panel (inside header) ────────────────────────── */
@@ -1835,3 +1850,47 @@ body {
 .eggbook-item-name { flex: 1; }
 
 
+
+/* ── Evolution Widget: new era states ────────────────────────── */
+
+/* 休眠期：缓慢变灰变暗 */
+.evo-widget--dormant {
+  opacity: 0.3;
+  filter: grayscale(1);
+  transition: opacity 2s ease, filter 2s ease,
+              left 0.35s cubic-bezier(0.34,1.4,0.64,1),
+              top 0.35s cubic-bezier(0.34,1.4,0.64,1),
+              right 0.35s cubic-bezier(0.34,1.4,0.64,1),
+              bottom 0.35s cubic-bezier(0.34,1.4,0.64,1);
+}
+.evo-widget--dormant:hover {
+  opacity: 0.6;
+  filter: grayscale(0.5);
+}
+
+/* 乱纪元：边框快速闪烁 */
+@keyframes evo-chaotic-border {
+  0%, 100% { border-color: var(--evo-border, #89b4fa); box-shadow: 0 0 8px var(--evo-glow, transparent); }
+  33%       { border-color: #f38ba8; box-shadow: 0 0 16px rgba(243,139,168,0.5); }
+  66%       { border-color: #fab387; box-shadow: 0 0 16px rgba(250,179,135,0.5); }
+}
+.evo-widget--chaotic {
+  animation: evo-chaotic-border 1.2s ease-in-out infinite;
+}
+
+/* Lv.7 二向箔展开：缓慢淡出至虚无，hover 时短暂现身 */
+.evo-widget--max {
+  animation: evo-vanish 4s ease-in-out forwards;
+}
+@keyframes evo-vanish {
+  0%   { opacity: 0.7; filter: none; }
+  60%  { opacity: 0.15; filter: blur(1px) grayscale(0.5); }
+  100% { opacity: 0; filter: blur(3px) grayscale(1); pointer-events: none; }
+}
+.evo-widget--max:hover {
+  animation: none;
+  opacity: 0.8 !important;
+  filter: none !important;
+  pointer-events: auto !important;
+  transition: opacity 0.4s ease, filter 0.4s ease;
+}
