@@ -2,6 +2,34 @@
 
 ---
 
+## 2026-05-22 | Bugfix — C# 中文 StackTrace 单行压缩解析失败
+
+### 问题描述
+
+当 C# 中文 stacktrace 所有 frame 压缩在一行（frame 之间只有单个空格分隔）时，`CSharpStrategy.splitIntoLines()` 无法正确拆分，导致整个 stacktrace 被当成 1-2 行处理，解析失败。
+
+### 根因
+
+原有 `FRAME_SPLIT_RE` 要求 frame 前有 `\s{2,}`（2个以上空格），但实际日志中 frame 之间只有单个空格（如 `行号 826 在 S3.FMS...`）。
+
+### 修复方案
+
+新增两个正则 `ZH_FRAME_BOUNDARY_RE` / `EN_FRAME_BOUNDARY_RE`，在单行输入时按 `在 <大写命名空间>` / `at <大写命名空间>` 模式拆分。多行输入保持原有 2+ 空格拆分逻辑不变。
+
+### 变更文件
+
+| 文件 | 说明 |
+|------|------|
+| `src/formatter/stacktrace/CSharpStrategy.ts` | 新增单行压缩拆分逻辑 |
+| `tests/csharp-split-debug.test.ts` | 新增回归测试（完整中文 stacktrace） |
+
+### 测试结果
+
+- `npm run build` ✓ 零编译错误
+- `npm run test -- --run` ✓ 112 tests passed
+
+---
+
 ## 2026-05-14 | v1.2.0 — 主题切换、行号、历史记录、字体大小
 
 ### 需求背景
@@ -1029,3 +1057,70 @@ Test Files  7 passed (7)
 
 - `npm run build`：✓ 零编译错误，95 模块，3.86s
 - `npm run test -- --run`：✓ 109 个测试全部通过
+
+---
+
+## 2026-05-22 | Feature — 分屏方向切换（左右 ↔ 上下）
+
+### 功能描述
+
+新增布局切换按钮，用户可在左右分屏和上下分屏之间一键切换。偏好通过 localStorage 持久化。
+
+### 设计决策
+
+- 按钮放在 header 右侧，紧挨主题切换按钮左侧
+- `uiStore` 新增 `layoutDirection` 状态（`'horizontal' | 'vertical'`），使用 `useLocalStorage` 持久化
+- `ResizableDivider` 根据方向自动切换拖拽轴（X/Y）和光标样式
+- 面板尺寸复用 `leftPanelPct`，水平时控制宽度，垂直时控制高度
+- 图标用两个简洁 SVG 表示当前布局方向，点击后切换
+
+### 变更文件
+
+| 文件 | 说明 |
+|------|------|
+| `src/stores/uiStore.ts` | 新增 `layoutDirection`、`toggleLayout()`、导出 `LayoutDirection` 类型 |
+| `src/components/LayoutToggle.vue` | 新建，布局切换按钮组件 |
+| `src/components/ResizableDivider.vue` | 支持垂直方向拖拽（clientY）、row-resize 光标、方向键适配 |
+| `src/App.vue` | 引入 LayoutToggle，根据方向设置 class 和 style |
+| `src/styles/main.css` | 新增 `.app-layout--vertical`、`.layout-toggle-btn` 样式 |
+
+### 测试结果
+
+- `npm run build` ✓ 零编译错误
+- `npm run test -- --run` ✓ 112 tests passed
+
+---
+
+## 2026-05-22 | Feature — 分屏图标优化 + 格式选择文档级持久化
+
+### 变更内容
+
+1. **分屏切换按钮图标优化**：改为带分隔线的矩形图标（竖线=左右分屏，横线=上下分屏），更直观简洁。
+
+2. **格式选择保存到文档级别**：每个文档独立记住自己的格式目标（SQL 方言 / JSON / StackTrace），切换文档时自动恢复。
+
+### 设计决策
+
+- `SqlDocument` 接口新增可选字段 `formatTarget?: FormatTarget`
+- `historyStore` 新增 `saveFormatTarget(target)` 方法，写入当前活跃文档并持久化
+- 切换文档时（`handleTabClick`）：先保存当前文档的 formatTarget，切换后恢复目标文档的 formatTarget
+- 新建文档时继承当前 formatTarget
+- 删除文档后恢复新活跃文档的 formatTarget
+- 启动时从活跃文档恢复 formatTarget
+- 全局 `sql-formatter-config` localStorage 仍保留作为默认值（无文档级设置时的 fallback）
+
+### 变更文件
+
+| 文件 | 说明 |
+|------|------|
+| `src/components/LayoutToggle.vue` | 更换为带分隔线的矩形 SVG 图标 |
+| `src/types/index.ts` | `SqlDocument` 新增 `formatTarget?` 字段 |
+| `src/stores/historyStore.ts` | 新增 `saveFormatTarget()` 方法，导入 `FormatTarget` 类型 |
+| `src/components/ConfigPanel.vue` | 格式切换时调用 `historyStore.saveFormatTarget()` |
+| `src/components/HistoryPanel.vue` | 文档切换/新建/删除时保存/恢复 formatTarget |
+| `src/App.vue` | 启动时恢复活跃文档的 formatTarget |
+
+### 测试结果
+
+- `npm run build` ✓ 零编译错误
+- `npm run test -- --run` ✓ 112 tests passed

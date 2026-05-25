@@ -413,6 +413,7 @@ body {
   flex-shrink: 0;
   display: flex;
   align-items: center;
+  gap: 8px;
   margin-left: auto;
 }
 
@@ -847,6 +848,48 @@ body {
 .panel-divider--resizable:hover::after,
 .panel-divider--dragging::after {
   opacity: 1;
+}
+
+/* ── Vertical layout (top/bottom split) ───────────────────── */
+.app-layout--vertical {
+  flex-direction: column;
+}
+
+.app-layout--vertical .panel-divider {
+  width: 100%;
+  height: 5px;
+}
+
+.app-layout--vertical .panel-divider--resizable {
+  cursor: row-resize;
+}
+
+.app-layout--vertical .panel-divider--resizable::after {
+  width: 32px;
+  height: 3px;
+}
+
+/* ── Layout toggle button ─────────────────────────────────── */
+.layout-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+
+.layout-toggle-btn:hover {
+  color: var(--color-text);
+  background: var(--color-history-item-hover);
+  border-color: var(--color-border);
 }
 
 /* ── Panel header ─────────────────────────────────────────── */

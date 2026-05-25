@@ -17,6 +17,13 @@ export class CSharpStrategy implements IStackTraceStrategy {
   // Matches the start of a frame: 2+ spaces then "at " or "在 "
   private static readonly FRAME_SPLIT_RE = /(?:\s{2,})(at |在 )/g;
 
+  // Chinese: split before "在 " when followed by a namespace-like identifier
+  // (uppercase letter or namespace pattern like "System." / "S3.")
+  private static readonly ZH_FRAME_BOUNDARY_RE = /\s(在 [A-Z][\w.]*)/g;
+
+  // English: split before "at " when followed by a namespace-like identifier
+  private static readonly EN_FRAME_BOUNDARY_RE = /\s(at [A-Z][\w.]*)/g;
+
   // English frame: "at <method> in <file>:line <N>"
   private static readonly EN_FRAME_RE =
     /^at\s+([\s\S]+?)\s+in\s+([\s\S]+?):line\s+(\d+)\s*$/;
@@ -50,16 +57,38 @@ export class CSharpStrategy implements IStackTraceStrategy {
   /**
    * Split compressed log line into individual frame lines.
    * Handles both already-newline-separated and space-compressed formats.
+   *
+   * Splitting strategies (applied in order):
+   *   1. 2+ spaces before "at " / "在 "  (original multi-space separator)
+   *   2. Single space before "在 <Namespace>" or "at <Namespace>"
+   *      (common in Chinese .NET logs where frames are joined with one space)
    */
   private splitIntoLines(input: string): string[] {
     // Normalise line endings
     const normalised = input.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
-    // Insert newline before each frame prefix that is preceded by 2+ spaces
-    const expanded = normalised.replace(
-      CSharpStrategy.FRAME_SPLIT_RE,
-      '\n$1',
-    );
+    // If already multi-line, skip aggressive splitting
+    const hasNewlines = normalised.includes('\n');
+
+    let expanded = normalised;
+
+    if (!hasNewlines) {
+      // Single-line compressed: split before "在 <Namespace>" / "at <Namespace>"
+      expanded = expanded.replace(
+        CSharpStrategy.ZH_FRAME_BOUNDARY_RE,
+        '\n$1',
+      );
+      expanded = expanded.replace(
+        CSharpStrategy.EN_FRAME_BOUNDARY_RE,
+        '\n$1',
+      );
+    } else {
+      // Multi-line but may still have some compressed frames (2+ spaces)
+      expanded = expanded.replace(
+        CSharpStrategy.FRAME_SPLIT_RE,
+        '\n$1',
+      );
+    }
 
     return expanded
       .split('\n')

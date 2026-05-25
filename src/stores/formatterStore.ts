@@ -27,6 +27,7 @@ export const useFormatterStore = defineStore('formatter', () => {
   /** Derived format target for the single selector in ConfigPanel */
   const formatTarget = computed<FormatTarget>(() => {
     if (mode.value === 'json') return 'json';
+    if (mode.value === 'stacktrace') return 'stacktrace';
     return `sql-${config.value.dialect}` as FormatTarget;
   });
 

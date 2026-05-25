@@ -147,6 +147,7 @@
 import { ref, reactive, watch, onMounted } from 'vue';
 import { useEventListener } from '@vueuse/core';
 import { useFormatterStore } from '../stores/formatterStore';
+import { useHistoryStore } from '../stores/historyStore';
 import { useUiStore } from '../stores/uiStore';
 import { DEFAULT_CONFIG, DEFAULT_FONT_SIZE } from '../types/index';
 import type { FormatterConfig, FormatTarget } from '../types/index';
@@ -155,6 +156,7 @@ import { FORMAT_TARGET_GROUPS, VALID_FORMAT_TARGETS } from '../config/formatTarg
 const STORAGE_KEY = 'sql-formatter-config';
 
 const formatterStore = useFormatterStore();
+const historyStore = useHistoryStore();
 const uiStore = useUiStore();
 
 const isOpen = ref(false);
@@ -197,7 +199,11 @@ function loadFromStorage(): void {
       formatterStore.config = { ...pending };
     }
     if (data.formatTarget && VALID_FORMAT_TARGETS.has(data.formatTarget)) {
-      formatterStore.setFormatTarget(data.formatTarget);
+      // Only apply global formatTarget if the active document has no per-doc setting
+      const activeDoc = historyStore.getActiveDoc();
+      if (!activeDoc?.formatTarget) {
+        formatterStore.setFormatTarget(data.formatTarget);
+      }
     }
     if (typeof data.fontSize === 'number' && data.fontSize >= 10 && data.fontSize <= 24) {
       pendingFontSize.value = data.fontSize;
@@ -219,6 +225,7 @@ function saveToStorage(): void {
 function onFormatTargetChange(e: Event): void {
   const val = (e.target as HTMLSelectElement).value as FormatTarget;
   formatterStore.setFormatTarget(val);
+  historyStore.saveFormatTarget(val);
   saveToStorage();
 }
 

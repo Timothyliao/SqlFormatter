@@ -31,6 +31,8 @@ export interface SqlDocument {
   sql: string;
   /** Timestamp of last modification */
   updatedAt: number;
+  /** Per-document format target (mode + dialect) */
+  formatTarget?: FormatTarget;
 }
 
 /**

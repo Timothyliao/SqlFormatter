@@ -9,6 +9,7 @@
         <ConfigPanel />
       </div>
       <div class="theme-toggle-container">
+        <LayoutToggle />
         <ThemeToggle />
       </div>
     </header>
@@ -21,12 +22,12 @@
     </div>
 
     <!-- Main layout: left input, right preview -->
-    <main class="app-layout">
+    <main class="app-layout" :class="{ 'app-layout--vertical': uiStore.layoutDirection === 'vertical' }">
       <!-- Left: Input Panel -->
       <section
         class="panel panel-input"
         :aria-label="inputPanelLabel"
-        :style="{ flex: 'none', width: uiStore.leftPanelPct + '%' }"
+        :style="panelInputStyle"
       >
         <div class="panel-header">
           <span class="panel-label">{{ inputPanelLabel }}</span>
@@ -119,6 +120,7 @@ import { useUiStore } from './stores/uiStore';
 import { useHistoryStore } from './stores/historyStore';
 import { useFormatterStore } from './stores/formatterStore';
 import { SHORTCUTS } from './config/shortcuts';
+import LayoutToggle from './components/LayoutToggle.vue';
 import ConfigPanel from './components/ConfigPanel.vue';
 import ThemeToggle from './components/ThemeToggle.vue';
 import HistoryPanel from './components/HistoryPanel.vue';
@@ -151,6 +153,13 @@ const inputPanelLabel = computed(() => {
   return '输入 SQL';
 });
 
+const panelInputStyle = computed(() => {
+  if (uiStore.layoutDirection === 'vertical') {
+    return { flex: 'none', height: uiStore.leftPanelPct + '%' };
+  }
+  return { flex: 'none', width: uiStore.leftPanelPct + '%' };
+});
+
 function getPreviewPlainText(): string {
   return previewPanelRef.value?.getPlainText() ?? '';
 }
@@ -161,6 +170,9 @@ onMounted(() => {
   if (doc && doc.sql) {
     formatterStore.isRestoringFromHistory = true;
     formatterStore.sql = doc.sql;
+    if (doc.formatTarget) {
+      formatterStore.setFormatTarget(doc.formatTarget);
+    }
     setTimeout(() => {
       formatterStore.isRestoringFromHistory = false;
     }, 0);

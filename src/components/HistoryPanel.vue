@@ -95,6 +95,8 @@ const renameInputRef = ref<HTMLInputElement | null>(null);
 
 function handleTabClick(id: string): void {
   if (id === historyStore.activeId) return;
+  // Save current format target to the document we're leaving
+  historyStore.saveFormatTarget(formatterStore.formatTarget);
   // flushFn: save current editor content before switching
   const newSql = historyStore.switchTo(id, () => {
     historyStore.saveActiveDoc(formatterStore.sql);
@@ -102,6 +104,11 @@ function handleTabClick(id: string): void {
   if (newSql !== null) {
     formatterStore.isRestoringFromHistory = true;
     formatterStore.sql = newSql;
+    // Restore per-document format target
+    const doc = historyStore.getActiveDoc();
+    if (doc?.formatTarget) {
+      formatterStore.setFormatTarget(doc.formatTarget);
+    }
     setTimeout(() => {
       formatterStore.isRestoringFromHistory = false;
     }, 0);
@@ -118,7 +125,11 @@ function startRename(id: string, currentLabel: string): void {
 }
 
 function handleNewDocument(): void {
+  // Save current format target before creating new doc
+  historyStore.saveFormatTarget(formatterStore.formatTarget);
   historyStore.newDocument();
+  // New document inherits current format target
+  historyStore.saveFormatTarget(formatterStore.formatTarget);
   formatterStore.isRestoringFromHistory = true;
   formatterStore.sql = '';
   setTimeout(() => {
@@ -131,6 +142,11 @@ function handleDeleteDoc(id: string): void {
   if (newSql !== null) {
     formatterStore.isRestoringFromHistory = true;
     formatterStore.sql = newSql;
+    // Restore per-document format target
+    const doc = historyStore.getActiveDoc();
+    if (doc?.formatTarget) {
+      formatterStore.setFormatTarget(doc.formatTarget);
+    }
     setTimeout(() => {
       formatterStore.isRestoringFromHistory = false;
     }, 0);

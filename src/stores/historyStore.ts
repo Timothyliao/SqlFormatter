@@ -1,7 +1,7 @@
 import { ref } from 'vue';
 import { defineStore } from 'pinia';
 import { MAX_DOCUMENTS, MAX_SQL_BYTES } from '../types/index';
-import type { SqlDocument } from '../types/index';
+import type { SqlDocument, FormatTarget } from '../types/index';
 
 const STORAGE_KEY = 'sql-formatter-documents';
 const ACTIVE_KEY = 'sql-formatter-active-doc';
@@ -195,6 +195,14 @@ export const useHistoryStore = defineStore('history', () => {
     saveToStorage();
   }
 
+  /** Save the format target for the active document */
+  function saveFormatTarget(target: FormatTarget): void {
+    const doc = getActiveDoc();
+    if (!doc) return;
+    doc.formatTarget = target;
+    saveToStorage();
+  }
+
   // Persist on init
   saveToStorage();
 
@@ -211,5 +219,6 @@ export const useHistoryStore = defineStore('history', () => {
     newDocument,
     deleteDoc,
     renameDoc,
+    saveFormatTarget,
   };
 });

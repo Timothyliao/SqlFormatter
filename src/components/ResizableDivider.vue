@@ -2,10 +2,13 @@
   <div
     ref="dividerEl"
     class="panel-divider panel-divider--resizable"
+    :class="{
+      'panel-divider--dragging': isDragging,
+      'panel-divider--vertical': isVertical,
+    }"
     role="separator"
-    aria-label="拖拽调整面板宽度"
+    :aria-label="isVertical ? '拖拽调整面板高度' : '拖拽调整面板宽度'"
     tabindex="0"
-    :class="{ 'panel-divider--dragging': isDragging }"
     @mousedown="onMouseDown"
     @touchstart.passive="onTouchStart"
     @keydown="onKeyDown"
@@ -13,27 +16,29 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useUiStore } from '../stores/uiStore';
 
 const uiStore = useUiStore();
 const dividerEl = ref<HTMLElement>();
 
+const isVertical = computed(() => uiStore.layoutDirection === 'vertical');
+
 const isDragging = ref(false);
-let startX = 0;
+let startPos = 0;
 let startLeftPct = 0;
 
 // ── Mouse ─────────────────────────────────────────────────────────────────────
 
 function onMouseDown(e: MouseEvent): void {
   if (window.innerWidth < 768) return;
-  startDrag(e.clientX);
+  startDrag(isVertical.value ? e.clientY : e.clientX);
   e.preventDefault();
 }
 
 function onMouseMove(e: MouseEvent): void {
   if (!isDragging.value) return;
-  updateSplit(e.clientX);
+  updateSplit(isVertical.value ? e.clientY : e.clientX);
 }
 
 function onMouseUp(): void {
@@ -45,14 +50,14 @@ function onMouseUp(): void {
 function onTouchStart(e: TouchEvent): void {
   if (window.innerWidth < 768) return;
   const touch = e.touches[0];
-  if (touch) startDrag(touch.clientX);
+  if (touch) startDrag(isVertical.value ? touch.clientY : touch.clientX);
 }
 
 function onTouchMove(e: TouchEvent): void {
   if (!isDragging.value) return;
   e.preventDefault();
   const touch = e.touches[0];
-  if (touch) updateSplit(touch.clientX);
+  if (touch) updateSplit(isVertical.value ? touch.clientY : touch.clientX);
 }
 
 function onTouchEnd(): void {
@@ -63,10 +68,12 @@ function onTouchEnd(): void {
 
 function onKeyDown(e: KeyboardEvent): void {
   if (window.innerWidth < 768) return;
-  if (e.key === 'ArrowLeft') {
+  const shrinkKey = isVertical.value ? 'ArrowUp' : 'ArrowLeft';
+  const growKey = isVertical.value ? 'ArrowDown' : 'ArrowRight';
+  if (e.key === shrinkKey) {
     e.preventDefault();
     uiStore.leftPanelPct = Math.max(20, Math.min(80, uiStore.leftPanelPct - 2));
-  } else if (e.key === 'ArrowRight') {
+  } else if (e.key === growKey) {
     e.preventDefault();
     uiStore.leftPanelPct = Math.max(20, Math.min(80, uiStore.leftPanelPct + 2));
   }
@@ -74,21 +81,23 @@ function onKeyDown(e: KeyboardEvent): void {
 
 // ── Drag helpers ──────────────────────────────────────────────────────────────
 
-function startDrag(clientX: number): void {
+function startDrag(clientPos: number): void {
   isDragging.value = true;
-  startX = clientX;
+  startPos = clientPos;
   startLeftPct = uiStore.leftPanelPct;
-  document.body.style.cursor = 'col-resize';
+  document.body.style.cursor = isVertical.value ? 'row-resize' : 'col-resize';
   document.body.style.userSelect = 'none';
 }
 
-function updateSplit(clientX: number): void {
+function updateSplit(clientPos: number): void {
   const layout = dividerEl.value?.parentElement;
   if (!layout) return;
-  const containerWidth = layout.getBoundingClientRect().width;
-  if (containerWidth === 0) return;
-  const delta = clientX - startX;
-  const deltaPct = (delta / containerWidth) * 100;
+  const containerSize = isVertical.value
+    ? layout.getBoundingClientRect().height
+    : layout.getBoundingClientRect().width;
+  if (containerSize === 0) return;
+  const delta = clientPos - startPos;
+  const deltaPct = (delta / containerSize) * 100;
   uiStore.leftPanelPct = Math.max(20, Math.min(80, startLeftPct + deltaPct));
 }
 
