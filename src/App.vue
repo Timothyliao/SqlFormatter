@@ -5,6 +5,8 @@
       <div class="app-brand">
         <img src="/assets/logo.png" alt="Lumino" class="app-logo" />
       </div>
+      <!-- 抽奖插件暂时下线 -->
+      <!-- <LotteryGame /> -->
       <div class="config-panel">
         <ConfigPanel />
       </div>
@@ -131,6 +133,8 @@ import CopyButton from './components/CopyButton.vue';
 import SaveButton from './components/SaveButton.vue';
 import EvolutionWidget from './components/fun/EvolutionWidget.vue';
 import EggBook from './components/fun/EggBook.vue';
+// 抽奖插件暂时下线
+// import LotteryGame from './components/fun/LotteryGame.vue';
 
 // Detect macOS for platform-aware shortcut display
 const isMac = navigator.platform.toUpperCase().includes('MAC') || navigator.userAgent.includes('Mac');

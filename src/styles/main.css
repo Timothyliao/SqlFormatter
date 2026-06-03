@@ -1345,10 +1345,28 @@ body {
   .app-header {
     height: auto;
     padding: 8px 12px;
+    gap: 6px 10px;
   }
 
+  /* Row 1: brand + lottery (left), toggles (right) */
+  .app-brand { order: 0; }
+  .lg-fab { order: 1; }
+  .theme-toggle-container { order: 2; }
+  /* forced row break */
+  .app-header::after {
+    content: '';
+    order: 3;
+    flex-basis: 100%;
+    height: 0;
+  }
+  /* Row 2: left empty (reserved for future plugins), format/settings on right */
   .config-panel {
-    justify-content: flex-start;
+    order: 4;
+    justify-content: flex-end;
+  }
+
+  .panel-input {
+    width: 100% !important;
   }
 
   .history-bar {

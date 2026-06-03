@@ -2,6 +2,29 @@
 
 ---
 
+## 2026-06-01 | 抽奖插件暂时下线
+
+### 需求背景
+
+应要求暂时下线抽奖插件（LotteryGame），保留组件源码以便后续恢复，仅断开其在 `App.vue` 中的接入。
+
+### 变更方案
+
+在 `App.vue` 中注释掉 `LotteryGame` 的模板使用与 import 语句，并标注「抽奖插件暂时下线」。`src/components/fun/LotteryGame.vue` 组件文件保持不动，方便日后取消注释即可恢复。
+
+### 变更文件
+
+| 文件 | 说明 |
+|------|------|
+| `src/App.vue` | 注释掉 `<LotteryGame />` 模板使用及其 import |
+
+### 测试结果
+
+- `npm run build` ✓ 零编译错误
+- `npm run test -- --run` ✓ 112 tests passed
+
+---
+
 ## 2026-05-22 | Bugfix — C# 中文 StackTrace 单行压缩解析失败
 
 ### 问题描述

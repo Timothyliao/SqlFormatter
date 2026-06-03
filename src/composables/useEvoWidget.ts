@@ -82,14 +82,23 @@ export function useEvoWidget(containerRef: { value: HTMLElement | null }) {
     applySnappedPosition();
   }
 
-  function onMouseDown(e: MouseEvent): void {
+  function getPoint(e: MouseEvent | TouchEvent): { x: number; y: number } {
+    if ('touches' in e) {
+      const t = e.touches[0] ?? e.changedTouches[0];
+      return { x: t.clientX, y: t.clientY };
+    }
+    return { x: e.clientX, y: e.clientY };
+  }
+
+  function onDragStart(e: MouseEvent | TouchEvent): void {
     const target = e.target as HTMLElement;
     if (target.closest('button')) return;
     const el = containerRef.value;
     if (!el) return;
+    const p = getPoint(e);
     isDragging.value = true;
-    dragStartX = e.clientX;
-    dragStartY = e.clientY;
+    dragStartX = p.x;
+    dragStartY = p.y;
     const rect = el.getBoundingClientRect();
     dragOriginLeft = rect.left;
     dragOriginTop = rect.top;
@@ -98,43 +107,52 @@ export function useEvoWidget(containerRef: { value: HTMLElement | null }) {
     e.preventDefault();
   }
 
-  function onMouseMove(e: MouseEvent): void {
+  function onDragMove(e: MouseEvent | TouchEvent): void {
     if (!isDragging.value) return;
     const el = containerRef.value;
     if (!el) return;
-    const dx = e.clientX - dragStartX;
-    const dy = e.clientY - dragStartY;
+    e.preventDefault();
+    const p = getPoint(e);
+    const dx = p.x - dragStartX;
+    const dy = p.y - dragStartY;
     el.style.left   = `${dragOriginLeft + dx}px`;
     el.style.top    = `${dragOriginTop + dy}px`;
     el.style.right  = 'auto';
     el.style.bottom = 'auto';
   }
 
-  function onMouseUp(e: MouseEvent): void {
+  function onDragEnd(e: MouseEvent | TouchEvent): void {
     if (!isDragging.value) return;
     const el = containerRef.value;
     if (!el) return;
     isDragging.value = false;
     el.classList.remove('evo-widget--dragging');
     el.style.transition = '';
-    const dx = e.clientX - dragStartX;
-    const dy = e.clientY - dragStartY;
-    snapToEdge(dragOriginLeft + dx, dragOriginTop + dy);
+    const p = getPoint(e);
+    snapToEdge(dragOriginLeft + (p.x - dragStartX), dragOriginTop + (p.y - dragStartY));
   }
 
   function initDrag(): void {
     const el = containerRef.value;
     if (!el) return;
-    el.addEventListener('mousedown', onMouseDown);
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
+    el.addEventListener('mousedown', onDragStart);
+    el.addEventListener('touchstart', onDragStart, { passive: false });
+    document.addEventListener('mousemove', onDragMove);
+    document.addEventListener('touchmove', onDragMove, { passive: false });
+    document.addEventListener('mouseup', onDragEnd);
+    document.addEventListener('touchend', onDragEnd);
   }
 
   function destroyDrag(): void {
     const el = containerRef.value;
-    if (el) el.removeEventListener('mousedown', onMouseDown);
-    document.removeEventListener('mousemove', onMouseMove);
-    document.removeEventListener('mouseup', onMouseUp);
+    if (el) {
+      el.removeEventListener('mousedown', onDragStart);
+      el.removeEventListener('touchstart', onDragStart);
+    }
+    document.removeEventListener('mousemove', onDragMove);
+    document.removeEventListener('touchmove', onDragMove);
+    document.removeEventListener('mouseup', onDragEnd);
+    document.removeEventListener('touchend', onDragEnd);
   }
 
   onMounted(() => {
